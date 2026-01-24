@@ -1,0 +1,9 @@
+# Supabase functions configuration
+[functions]
+
+[functions.server]
+# Allow public/browser access to Edge Functions without a user JWT
+verify_jwt = false
+
+[functions."make-server-473d7342"]
+verify_jwt = false
