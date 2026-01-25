@@ -85,7 +85,7 @@ const transcribeHandler = async (c: any) => {
 
     // Analyze the lyrics for mood, emotion, and themes (optional, if Sonoteller key is available)
     let lyricsAnalysis = null;
-    const sonotellerKey = Deno.env.get('SONOTELLER_RAPID_KEY');
+    const sonotellerKey = Deno.env.get('RapidAPI_Key');
     if (transcription && transcription.length > 10 && sonotellerKey) {
       try {
         console.log('Analyzing lyrics for mood and emotion with Sonoteller.ai...');
@@ -1286,4 +1286,119 @@ app.get('/make-server-473d7342/scheduler/stats', async (c) => {
   }
 });
 
+// Single Song Enrichment Endpoint
+app.post('/make-server-473d7342/project365/enrich-song', async (c) => {
+  try {
+    const { song, transcription } = await c.req.json();
+    const fileName = song.fileName;
+    const dbKey = `project365:song:${fileName}`;
+
+    // 1. Check if already analyzed (PROTECT YOUR QUOTA)
+    const existing = await kv.get(dbKey);
+    if (existing && existing.lyricsAnalysis) {
+      console.log(`Skipping ${fileName} - already analyzed`);
+      return c.json({ status: 'skipped', message: 'Already analyzed', fileName });
+    }
+
+    // 2. Call Sonoteller (Consumes 1 Credit)
+    console.log(`Analyzing lyrics for: ${fileName}`);
+    const analysis = await analyzeLyricsWithAI(transcription.text, '');
+
+    // 3. Save
+    const finalData = {
+      id: crypto.randomUUID(),
+      project: '365 Days of Light and Dark',
+      fileName: fileName,
+      title: song.title,
+      duration: song.duration,
+      transcription: transcription.text,
+      segments: transcription.segments,
+      lyricsAnalysis: analysis,
+      processedAt: new Date().toISOString(),
+    };
+
+    await kv.set(dbKey, finalData);
+    return c.json({ success: true, fileName, sentiment: analysis.sentiment });
+
+  } catch (error) {
+    return c.json({ error: error.message }, 500);
+  }
+});
+
 Deno.serve(app.fetch);
+
+// ============================================================================
+// 365 DAYS PROJECT - BATCH PROCESSING & EXPORT
+// ============================================================================
+
+// 1. Single Song Enrichment Endpoint (Called by local script)
+app.post('/make-server-473d7342/project365/enrich-song', async (c) => {
+  try {
+    const { song, transcription } = await c.req.json();
+
+    if (!song || !transcription || !transcription.text) {
+      return c.json({ error: 'Invalid song data' }, 400);
+    }
+
+    const fileName = song.fileName;
+    // Use a specific prefix for this project's data
+    const dbKey = `project365:song:${fileName}`;
+
+    // Check if already processed to save API credits
+    const existing = await kv.get(dbKey);
+    if (existing && existing.lyricsAnalysis) {
+      console.log(`Skipping ${fileName} - already analyzed`);
+      return c.json({ status: 'skipped', fileName });
+    }
+
+    // Call Sonoteller using the transcription text we already have
+    console.log(`Analyzing lyrics for: ${fileName}`);
+    // The API key is pulled from Deno.env inside the function, so we pass empty string
+    const analysis = await analyzeLyricsWithAI(transcription.text, '');
+
+    // Create the final 365 data object
+    const finalData = {
+      id: crypto.randomUUID(),
+      project: '365 Days of Light and Dark',
+      fileName: fileName,
+      title: song.title,
+      duration: song.duration,
+      transcription: transcription.text,
+      segments: transcription.segments, // Timestamps are crucial for your visuals
+      lyricsAnalysis: analysis,         // The new Sonoteller data
+      processedAt: new Date().toISOString(),
+    };
+
+    // Save to Database
+    await kv.set(dbKey, finalData);
+
+    return c.json({ success: true, fileName, sentiment: analysis.sentiment });
+
+  } catch (error) {
+    console.error('Error in enrich-song:', error);
+    return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
+  }
+});
+
+// 2. Export JSON Endpoint (To get the final dataset)
+app.get('/make-server-473d7342/project365/export', async (c) => {
+  try {
+    // Fetch all keys starting with 'project365:song:'
+    // Note: detailed list/filtering might depend on your KV implementation limits
+    const allKeys = await kv.getByPrefix('project365:song:');
+    
+    // Sort by filename for consistency
+    const sorted = allKeys.sort((a: any, b: any) => 
+      (a.fileName || '').localeCompare(b.fileName || '')
+    );
+
+    return c.json({
+      project: "365 Days of Light and Dark",
+      exportedAt: new Date().toISOString(),
+      count: sorted.length,
+      songs: sorted
+    });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
+  }
+});
