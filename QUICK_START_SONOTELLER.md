@@ -1,3 +1,4 @@
+cd scripts
 # Quick Start: Sonoteller Lyrics Analysis (5 minutes)
 
 Get lyrics analysis working in 5 minutes.
