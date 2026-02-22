@@ -1,0 +1,6 @@
+{
+  "allowScripts": {
+    "allow": [],
+    "deny": ["npm:@swc/core@1.15.10", "npm:esbuild@0.25.12", "npm:fsevents@2.3.3"]
+  }
+}

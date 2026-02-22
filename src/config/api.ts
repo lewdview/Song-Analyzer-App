@@ -12,6 +12,7 @@ export const SERVER_FUNCTION_PATH = 'make-server-473d7342';
 // Base URLs
 export const getSupabaseBaseUrl = () => `https://${SUPABASE_PROJECT_ID}.supabase.co`;
 export const getEdgeFunctionUrl = () => `${getSupabaseBaseUrl()}/functions/v1/${SERVER_FUNCTION_PATH}`;
+export const getWhisperServiceUrl = () => (import.meta.env.VITE_WHISPER_SERVICE_URL || 'http://localhost:3001').replace(/\/$/, '');
 
 // API Endpoints
 export const API_ENDPOINTS = {
@@ -19,7 +20,7 @@ export const API_ENDPOINTS = {
   health: `${getEdgeFunctionUrl()}/health`,
   
   // Transcription
-  transcribe: `${getEdgeFunctionUrl()}/transcribe`,
+  transcribe: `${getWhisperServiceUrl()}/transcribe`,
   
   // Analyses
   analyses: {

@@ -175,7 +175,7 @@ export function AudioAnalyzer({
       setProgress(70);
       setStatusMessage('Transcribing lyrics...');
 
-      // Transcribe lyrics using Whisper API (pass audioBuffer for compression if needed)
+      // Transcribe lyrics using the local Whisper service (pass audioBuffer for compression if needed)
       const { lyrics, segments, words, analysis: lyricsAnalysis } = await transcribeLyrics(file, audioBuffer);
 
       setProgress(90);
@@ -925,10 +925,10 @@ const transcribeLyrics = async (
     file: File,
     audioBuffer: AudioBuffer
   ): Promise<{ lyrics: string; segments?: LyricSegment[]; words?: LyricWord[]; analysis: LyricsAnalysis | null }> => {
+    const whisperServiceUrl = (import.meta.env.VITE_WHISPER_SERVICE_URL || 'http://localhost:3001').replace(/\/$/, '');
+
     try {
-      const { projectId, publicAnonKey } = await import('../utils/supabase/info.tsx');
-      
-      const MAX_SIZE = 25 * 1024 * 1024; // 25MB Whisper limit
+      const MAX_SIZE = 25 * 1024 * 1024; // App-level soft limit to avoid very large browser uploads
       
       let audioFileToSend: Blob | File = file;
       let fileName = file.name;
@@ -943,7 +943,7 @@ const transcribeLyrics = async (
         // If still too large after compression, skip transcription
         if (audioFileToSend.size > MAX_SIZE) {
           return {
-            lyrics: `[File too large for transcription]\n\nThe audio file is ${(file.size / 1024 / 1024).toFixed(2)}MB, which exceeds OpenAI Whisper's 25MB limit.\nEven after compression, the file is ${(audioFileToSend.size / 1024 / 1024).toFixed(2)}MB.\n\nTo transcribe this file:\n1. Use audio editing software to reduce file size\n2. Split the file into smaller segments\n3. Use a different transcription service with higher limits`,
+            lyrics: `[File too large for local transcription]\n\nThe audio file is ${(file.size / 1024 / 1024).toFixed(2)}MB, which exceeds the current app upload limit of 25MB.\nEven after compression, the file is ${(audioFileToSend.size / 1024 / 1024).toFixed(2)}MB.\n\nTo transcribe this file:\n1. Reduce file size in an audio editor\n2. Split the file into smaller segments\n3. Increase the app-side upload threshold in AudioAnalyzer`,
             analysis: null
           };
         }
@@ -952,28 +952,30 @@ const transcribeLyrics = async (
       const formData = new FormData();
       formData.append('audio', audioFileToSend, fileName);
 
-      console.log(`Sending transcription request for: ${fileName} (${(audioFileToSend.size / 1024 / 1024).toFixed(2)}MB)`);
+      console.log(`Sending local Whisper transcription request for: ${fileName} (${(audioFileToSend.size / 1024 / 1024).toFixed(2)}MB)`);
 
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-473d7342/transcribe`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'apikey': publicAnonKey,
-          },
-          body: formData,
-        }
-      );
+      const response = await fetch(`${whisperServiceUrl}/transcribe`, {
+        method: 'POST',
+        body: formData,
+      });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('Transcription API error:', errorData);
-        throw new Error(errorData.error || `API error: ${response.status}`);
+        const errorText = await response.text();
+        let errorMessage = `Local Whisper service error: ${response.status}`;
+        if (errorText) {
+          try {
+            const parsed = JSON.parse(errorText);
+            errorMessage = parsed.error || parsed.details || errorMessage;
+          } catch {
+            errorMessage = `${errorMessage} - ${errorText}`;
+          }
+        }
+        console.error('Local transcription service error:', errorMessage);
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      console.log(`Transcription completed for: ${fileName}`);
+      console.log(`Local Whisper transcription completed for: ${fileName}`);
 
       // Normalize potential Whisper-like shapes
       // Expected possibilities: { transcription: string, segments: [{ start, end, text }], words: [{ start, end, word }], lyricsAnalysis }
@@ -1002,7 +1004,7 @@ const transcribeLyrics = async (
     } catch (error) {
       console.error('Transcription error:', error);
       return {
-        lyrics: `[Transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}]\n\nNote: Make sure your OpenAI API key is configured correctly.`,
+        lyrics: `[Transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}]\n\nMake sure the local Whisper service is running at ${whisperServiceUrl}/health.`,
         analysis: null
       };
     }

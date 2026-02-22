@@ -6,6 +6,18 @@ import { pipeline } from '@xenova/transformers';
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
+const corsOrigin = process.env.WHISPER_CORS_ORIGIN || '*';
+
+// Allow browser apps (different origin/port) to call the local transcription API.
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, apikey');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
 
 // Initialize the Whisper pipeline
 let transcriber = null;

@@ -715,7 +715,7 @@ export function HomePage() {
               <li>• Upload one or multiple MP3/WAV files</li>
               <li>• Audio analysis uses Web Audio API for real-time feature extraction</li>
               <li>• Analysis includes tempo, key, energy, mood, and more</li>
-              <li>• Lyrics transcription uses OpenAI Whisper API</li>
+              <li>• Lyrics transcription uses your local Whisper service</li>
               <li>• All results can be saved or downloaded as JSON</li>
               <li>• Use the 365 Days Scheduler to plan your music releases</li>
             </ul>
