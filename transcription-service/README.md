@@ -1,55 +1,78 @@
-# 🎙️ 365 Days of Light and Dark - Transcription Service
+# Transcription Service
 
-A standalone Node.js service for the **365 Days of Light and Dark by th3scr1b3 - Tool Drop - Multi Level Song Analyser**.
-It provides local Whisper transcription plus switchable lyrics analysis providers.
+Standalone local transcription service for:
+- `365 Days of Light and Dark by th3scr1b3`
+- Tool Drop product: `Multi Level Song Analyser`
+
+It provides:
+- local Whisper transcription
+- segment and word timing
+- local fallback word timing generation
+- lyrics analysis with selectable provider (`local`, `openai`, `claude`, `grok`)
+
+## Requirements
+
+- Node.js 18+
+- `ffmpeg` installed and available on PATH
 
 ## Quick Start
 
-```bash
-# Install dependencies
-npm install
+From repo root:
 
-# Start the service
+```bash
+cd transcription-service
+npm install
 npm start
 ```
 
-That's it! The service will:
-1. Start on `http://localhost:3001`
-2. Download the Whisper model on first run (~500MB, takes 5-15 minutes)
-3. Be ready to transcribe audio files
+Service defaults:
+- URL: `http://localhost:3001`
+- health: `GET /health`
+- transcription: `POST /transcribe`
+- default model: `Xenova/whisper-medium.en`
 
-## Usage
+Note: first startup may take time while model files download.
 
-### Health Check
+## API
+
+### Health
+
 ```bash
 curl http://localhost:3001/health
 ```
 
-### Transcribe Audio
+### Transcribe
+
 ```bash
-curl -X POST -F "audio=@your-audio.mp3" http://localhost:3001/transcribe
+curl -X POST \
+  -F "audio=@your-audio.mp3" \
+  http://localhost:3001/transcribe
 ```
 
-Response:
+Optional provider override header (if allowed by env):
+
+```bash
+curl -X POST \
+  -H "x-lyrics-ai-provider: claude" \
+  -F "audio=@your-audio.mp3" \
+  http://localhost:3001/transcribe
+```
+
+Response shape:
+
 ```json
 {
-  "transcription": "Transcribed text here...",
-  "segments": [
-    {"start": 0, "end": 3, "text": "first segment..."},
-    {"start": 3, "end": 6, "text": "second segment..."}
-  ],
-  "words": [
-    {"start": 0, "end": 0.5, "word": "first"},
-    {"start": 0.5, "end": 1.2, "word": "word"}
-  ],
+  "transcription": "string",
+  "segments": [{ "start": 0, "end": 1.2, "text": "..." }],
+  "words": [{ "start": 0, "end": 0.3, "word": "..." }],
   "lyricsAnalysis": {
-    "mood": ["upbeat", "energetic", "confident"],
-    "emotion": ["joy", "confidence"],
-    "themes": ["ambition", "party"],
+    "mood": ["..."],
+    "emotion": ["..."],
+    "themes": ["..."],
     "sentiment": "positive",
-    "sentimentScore": 0.63,
-    "energyFromLyrics": 0.74,
-    "valenceFromLyrics": 0.81
+    "sentimentScore": 0.25,
+    "energyFromLyrics": 0.6,
+    "valenceFromLyrics": 0.55
   },
   "lyricsAnalysisProvider": "local",
   "fileName": "your-audio.mp3",
@@ -57,147 +80,90 @@ Response:
 }
 ```
 
-## Features
+## Runtime Behavior
 
-✅ **Local Processing** - All transcription happens on your machine
-✅ **Timestamps** - Word-level and segment-level timestamps included
-✅ **Word Timing Fallback** - If model word timestamps fail, local segment-to-word timing is generated
-✅ **Lyrics Intelligence** - Local mood/emotion/theme/sentiment extraction
-✅ **Provider Toggle** - Switch lyrics analysis to OpenAI, Claude, Grok, or local
-✅ **Fast** - Much faster after first model download
-✅ **Offline** - Works without internet after model is cached
-✅ **Zero Cost** - No API fees (after setup)
+- Audio is decoded with `ffmpeg` to mono float32 at `WHISPER_SAMPLE_RATE` (default `16000`).
+- Timestamp mode defaults to:
+  - `word` when `WHISPER_FORCE_WORD_TIMINGS=true` (default)
+  - otherwise inferred from model (`segment` for medium/large models, else `word`)
+- Transcription retries:
+  - primary mode
+  - `segment` fallback when primary is `word`
+  - plain (`none`) fallback
+- Looping ASR artifacts are cleaned from words/segments.
+- If no word timestamps are returned, approximate word timings are generated from segment text.
+- Lyrics analysis runs only when enabled and transcript length meets `LOCAL_LYRICS_MIN_CHARS`.
+- Remote provider failure automatically falls back to local analysis.
 
 ## Configuration
 
-### Model Selection
+This service reads environment variables directly from the process.  
+It does not load `.env` automatically.
 
-Edit `server.js` line 19 to change the Whisper model:
+| Variable | Default | Purpose |
+|---|---|---|
+| `WHISPER_PORT` | `3001` | Service port |
+| `WHISPER_CORS_ORIGIN` | `*` | CORS `Access-Control-Allow-Origin` |
+| `WHISPER_MODEL` | `Xenova/whisper-medium.en` | Primary model |
+| `WHISPER_FALLBACK_MODELS` | `Xenova/whisper-medium.en,Xenova/whisper-base.en` | Fallback model list |
+| `WHISPER_DEVICE` | `cpu` | Inference device |
+| `WHISPER_QUANTIZED` | `false` | Quantized model mode |
+| `WHISPER_LANGUAGE` | `english` | Language hint (empty = auto-detect) |
+| `WHISPER_SAMPLE_RATE` | `16000` | Decode sample rate |
+| `WHISPER_CHUNK_LENGTH_S` | `12` | Chunk length |
+| `WHISPER_STRIDE_LENGTH_S` | `1.5` | Chunk overlap |
+| `WHISPER_NUM_BEAMS` | `3` | Beam search setting |
+| `WHISPER_REPETITION_PENALTY` | `1.05` | Decoding penalty |
+| `WHISPER_NO_REPEAT_NGRAM_SIZE` | `3` | N-gram repetition control |
+| `WHISPER_FORCE_WORD_TIMINGS` | `true` | Prefer word timestamps |
+| `WHISPER_TIMESTAMP_MODE` | inferred | `word`, `segment`, or `none` |
+| `ENABLE_LYRICS_ANALYSIS` | `true` | Enable lyrics analysis |
+| `ENABLE_LOCAL_LYRICS_ANALYSIS` | `true` | Legacy-compatible analysis toggle |
+| `LOCAL_LYRICS_MIN_CHARS` | `24` | Minimum transcript length for analysis |
+| `LYRICS_AI_PROVIDER` | `local` | Default provider |
+| `ALLOW_LYRICS_PROVIDER_OVERRIDE` | `true` | Allow `x-lyrics-ai-provider` header override |
 
-```javascript
-// Tiny: fastest, ~500MB
-'Xenova/whisper-tiny.en'
+## Provider Settings
 
-// Base: recommended balance, ~140MB
-'Xenova/whisper-base.en'
-
-// Small: better accuracy, ~460MB
-'Xenova/whisper-small.en'
-
-// Medium: high accuracy, ~1.4GB
-'Xenova/whisper-medium.en'
-
-// Large: best accuracy (multilingual), ~2.9GB
-'Xenova/whisper-large'
-```
-
-### Environment Variables
-
-```bash
-# Custom port (default: 3001)
-export WHISPER_PORT=3002
-
-# Optional: disable all lyrics analysis
-export ENABLE_LYRICS_ANALYSIS=true
-
-# Optional: minimum transcript length before analysis (default: 24)
-export LOCAL_LYRICS_MIN_CHARS=24
-
-# Prefer word timestamps first (default true)
-export WHISPER_FORCE_WORD_TIMINGS=true
-
-# Default provider: local|openai|claude|grok
-export LYRICS_AI_PROVIDER=local
-
-# Allow frontend override via x-lyrics-ai-provider header
-export ALLOW_LYRICS_PROVIDER_OVERRIDE=true
-
-# Provider keys (only needed for enabled provider)
-export OPENAI_API_KEY=sk-...
-export ANTHROPIC_API_KEY=sk-ant-...
-export XAI_API_KEY=xai-...
-
-# Start with custom port
-npm start
-```
-
-### Provider Notes
-
-- `local`: no external API calls, always available.
-- `openai`: uses `OPENAI_API_KEY` + `OPENAI_LYRICS_MODEL` (default `gpt-4o-mini`).
-- `claude`: uses `ANTHROPIC_API_KEY` + `ANTHROPIC_LYRICS_MODEL` (default `claude-3-5-sonnet-latest`).
-- `grok`: uses `XAI_API_KEY` (or `GROK_API_KEY`) + `XAI_LYRICS_MODEL` (default `grok-2-latest`).
-- If remote provider fails, service falls back to local analysis automatically.
-- If Whisper cannot return native word timestamps, the service generates approximate word timing from segment text locally.
-
-## Performance
-
-Typical transcription times (after model is downloaded):
-- **30 seconds audio**: 3-5 seconds (tiny) / 10-15 seconds (base)
-- **5 minutes audio**: 30-60 seconds (tiny) / 2-3 minutes (base)
-- **15 minutes audio**: 2-4 minutes (tiny) / 6-12 minutes (base)
+- `local`
+  - no external API calls
+- `openai`
+  - requires `OPENAI_API_KEY`
+  - model env: `OPENAI_LYRICS_MODEL` (default `gpt-4o-mini`)
+- `claude`
+  - requires `ANTHROPIC_API_KEY`
+  - model env: `ANTHROPIC_LYRICS_MODEL` (default `claude-3-5-sonnet-latest`)
+- `grok`
+  - requires `XAI_API_KEY` or `GROK_API_KEY`
+  - model env: `XAI_LYRICS_MODEL` or `GROK_LYRICS_MODEL` (default `grok-2-latest`)
 
 ## Development
 
 ```bash
-# Start with auto-reload on file changes
 npm run dev
 ```
 
 ## Testing
 
 ```bash
-# Run the test script
 ./test-service.sh
 ```
 
-This will:
-1. Check if service is running
-2. Test health endpoint
-3. Create test audio and verify transcription
-
 ## Troubleshooting
 
-### Port Already in Use
-```bash
-# Check what's using port 3001
-lsof -i :3001
+- Port in use:
+  - `lsof -i :3001`
+  - `WHISPER_PORT=3002 npm start`
+- `ffmpeg` decode errors:
+  - install `ffmpeg`
+  - verify command is available in shell PATH
+- Model init fails or memory pressure:
+  - use a smaller model, for example `Xenova/whisper-base.en`
+  - keep `WHISPER_QUANTIZED=true` for lower memory usage if needed
 
-# Use different port
-WHISPER_PORT=3002 npm start
-```
+## Related Docs
 
-### Out of Memory
-- Use smaller model (e.g., `whisper-tiny.en`)
-- Close other applications
-- Process shorter audio files
-
-### Slow First Run
-- Normal! Model is downloading (~500MB)
-- Check internet speed
-- Subsequent runs will be instant
-
-## Integration
-
-This service is used by the Tool Drop frontend (`/src/components/AudioAnalyzer.tsx`) and optional Edge Functions.
-
-The server sends requests to `http://localhost:3001/transcribe` automatically.
-
-See the main `IMPLEMENTATION_SUMMARY.md` for full integration details.
-
-## Files
-
-- `server.js` - Main Express server
-- `package.json` - Dependencies
-- `test-service.sh` - Testing script
-- `README.md` - This file
-
-## See Also
-
-- `../QUICK_START_WHISPER.md` - 5-minute quick start
-- `../WHISPER_LOCAL_SETUP.md` - Complete setup guide
-- `../IMPLEMENTATION_SUMMARY.md` - Full implementation overview
-
----
-
-Co-Authored-By: Warp <agent@warp.dev>
+- `../README.md`
+- `../.env.whisper.example`
+- `../QUICK_START_WHISPER.md`
+- `../WHISPER_LOCAL_SETUP.md`
