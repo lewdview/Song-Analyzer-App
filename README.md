@@ -1,11 +1,24 @@
 
-  # Song Analyzer App
+# 365 Days of Light and Dark by th3scr1b3
 
-  This is a code bundle for Song Analyzer App. The original project is available at https://www.figma.com/design/ydUJbEQCwUrpEUjKfjhXwv/Song-Analyzer-App.
+Tool Drop product name: **Multi Level Song Analyser**.
 
-  ## Running the code
+## Run locally
 
-  Run `npm i` to install the dependencies.
+1. Install app dependencies:
+   - `npm i`
+2. Install/start transcription service:
+   - `cd transcription-service && npm i && npm start`
+3. Start frontend:
+   - `npm run dev`
 
-  Run `npm run dev` to start the development server.
+## Runtime switches
+
+- **Deployment mode** in-app:
+  - `OG Database (th3scr1b3)`
+  - `Your Own Database`
+- **Lyrics AI provider** in-app:
+  - `local`, `openai`, `claude`, or `grok`
+
+These settings are persisted in browser localStorage and applied to API calls without code edits.
   

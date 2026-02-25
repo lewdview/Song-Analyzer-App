@@ -3,8 +3,8 @@
  */
 
 // App Info
-export const APP_NAME = 'Song Analyzer';
-export const APP_VERSION = '0.2.0';
+export const APP_NAME = '365 Days of Light and Dark by th3scr1b3';
+export const APP_VERSION = '0.3.0';
 export const APP_AUTHOR = 'th3scr1b3';
 
 // 365 Days Campaign

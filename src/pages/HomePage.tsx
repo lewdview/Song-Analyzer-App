@@ -10,11 +10,20 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAnalysisStore } from '@/store/analysisStore';
 import { useSupabaseAPI } from '@/hooks/useSupabaseAPI';
 import { 
+  APP_NAME,
   MAX_FILE_SIZE_BYTES, 
   SUPPORTED_AUDIO_TYPES,
   UPLOAD_PROGRESS_STEPS,
   UPLOAD_PROGRESS_DELAY_MS,
 } from '@/config/constants';
+import {
+  getActiveDatabaseConfig,
+  getRuntimeApiConfig,
+  saveRuntimeApiConfig,
+  resetRuntimeApiConfig,
+  type DatabaseMode,
+  type LyricsAIProvider,
+} from '@/config/api';
 import { logger } from '@/utils/logger';
 import type { SongAnalysis } from '@/types';
 import { 
@@ -29,6 +38,7 @@ import {
   Calendar,
   Trash2,
   Zap,
+  Settings,
 } from 'lucide-react';
 
 const log = logger.scope('HomePage');
@@ -113,6 +123,60 @@ export function HomePage() {
   });
   const [isGeneratingTitles, setIsGeneratingTitles] = useState(false);
   const [isBulkExportOpen, setIsBulkExportOpen] = useState(false);
+
+  const initialRuntimeConfig = useMemo(() => getRuntimeApiConfig(), []);
+  const [showDeploymentSettings, setShowDeploymentSettings] = useState(false);
+  const [databaseMode, setDatabaseMode] = useState<DatabaseMode>(initialRuntimeConfig.databaseMode);
+  const [customProjectId, setCustomProjectId] = useState(initialRuntimeConfig.customProjectId);
+  const [customAnonKey, setCustomAnonKey] = useState(initialRuntimeConfig.customAnonKey);
+  const [serverFunctionPath, setServerFunctionPath] = useState(initialRuntimeConfig.serverFunctionPath);
+  const [lyricsAiProvider, setLyricsAiProvider] = useState<LyricsAIProvider>(initialRuntimeConfig.lyricsAiProvider);
+  const [settingsMessage, setSettingsMessage] = useState('');
+
+  const customReady = customProjectId.trim().length > 0 && customAnonKey.trim().length > 0;
+  const previewServerFunctionPath = serverFunctionPath.trim() || 'make-server-473d7342';
+  const previewProjectId =
+    databaseMode === 'custom' && customReady
+      ? customProjectId.trim()
+      : 'pznmptudgicrmljjafex';
+  const previewModeLabel =
+    databaseMode === 'custom'
+      ? (customReady ? 'Custom database active' : 'Custom selected but incomplete (fallback to OG)')
+      : 'OG th3scr1b3 database active';
+  const previewEdgeUrl = `https://${previewProjectId}.supabase.co/functions/v1/${previewServerFunctionPath}`;
+
+  const handleSaveDeploymentSettings = () => {
+    const saved = saveRuntimeApiConfig({
+      databaseMode,
+      customProjectId: customProjectId.trim(),
+      customAnonKey: customAnonKey.trim(),
+      serverFunctionPath: previewServerFunctionPath,
+      lyricsAiProvider,
+    });
+
+    const active = getActiveDatabaseConfig();
+    setDatabaseMode(saved.databaseMode);
+    setCustomProjectId(saved.customProjectId);
+    setCustomAnonKey(saved.customAnonKey);
+    setServerFunctionPath(saved.serverFunctionPath);
+    setLyricsAiProvider(saved.lyricsAiProvider);
+
+    setSettingsMessage(
+      active.mode === 'custom'
+        ? 'Saved. Using your custom database and current provider settings.'
+        : 'Saved. Using OG database (custom mode needs project ID + anon key).'
+    );
+  };
+
+  const handleResetDeploymentSettings = () => {
+    const resetConfig = resetRuntimeApiConfig();
+    setDatabaseMode(resetConfig.databaseMode);
+    setCustomProjectId(resetConfig.customProjectId);
+    setCustomAnonKey(resetConfig.customAnonKey);
+    setServerFunctionPath(resetConfig.serverFunctionPath);
+    setLyricsAiProvider(resetConfig.lyricsAiProvider);
+    setSettingsMessage('Reset to default runtime settings.');
+  };
   
   // Drag and drop state
   const [isDragging, setIsDragging] = useState(false);
@@ -380,10 +444,10 @@ export function HomePage() {
         <div className="text-center mb-12">
           <div className="flex items-center justify-center gap-3 mb-4">
             <Music className="w-12 h-12 text-purple-300" aria-hidden="true" />
-            <h1 className="text-white">Song Analyzer</h1>
+            <h1 className="text-white">{APP_NAME}</h1>
           </div>
           <p className="text-purple-200">
-            Upload MP3 or WAV files for comprehensive audio analysis and lyrics transcription
+            365 Days of Light and Dark by th3scr1b3 - Tool Drop - Multi Level Song Analyser
           </p>
           
           {/* Action Buttons */}
@@ -435,7 +499,113 @@ export function HomePage() {
               <Calendar className="w-5 h-5" aria-hidden="true" />
               365 Days Scheduler
             </Link>
+
+            <button
+              onClick={() => setShowDeploymentSettings((prev) => !prev)}
+              className="px-6 py-2 bg-slate-500 text-white rounded-lg hover:bg-slate-600 transition-colors flex items-center gap-2"
+              type="button"
+            >
+              <Settings className="w-5 h-5" aria-hidden="true" />
+              {showDeploymentSettings ? 'Hide Settings' : 'Deployment Settings'}
+            </button>
           </div>
+
+          {showDeploymentSettings && (
+            <div className="mt-6 max-w-4xl mx-auto text-left bg-slate-900/40 border border-slate-500/30 rounded-xl p-5">
+              <h3 className="text-white mb-3">Deployment And Provider Settings</h3>
+              <p className="text-slate-200 text-sm mb-4">
+                Use OG mode to load th3scr1b3&apos;s database, or switch to Custom mode for a buyer-owned database.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-200 text-sm mb-1">Database Mode</label>
+                  <select
+                    value={databaseMode}
+                    onChange={(e) => setDatabaseMode(e.target.value as DatabaseMode)}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white"
+                  >
+                    <option value="og">OG Database (th3scr1b3)</option>
+                    <option value="custom">Your Own Database</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-200 text-sm mb-1">Lyrics AI Provider</label>
+                  <select
+                    value={lyricsAiProvider}
+                    onChange={(e) => setLyricsAiProvider(e.target.value as LyricsAIProvider)}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white"
+                  >
+                    <option value="local">Local (rule-based)</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="claude">Claude</option>
+                    <option value="grok">Grok</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-slate-200 text-sm mb-1">Edge Function Path</label>
+                  <input
+                    value={serverFunctionPath}
+                    onChange={(e) => setServerFunctionPath(e.target.value)}
+                    placeholder="make-server-473d7342"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white"
+                  />
+                </div>
+
+                {databaseMode === 'custom' && (
+                  <>
+                    <div>
+                      <label className="block text-slate-200 text-sm mb-1">Custom Supabase Project ID</label>
+                      <input
+                        value={customProjectId}
+                        onChange={(e) => setCustomProjectId(e.target.value)}
+                        placeholder="your-project-id"
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-200 text-sm mb-1">Custom Supabase Anon Key</label>
+                      <input
+                        value={customAnonKey}
+                        onChange={(e) => setCustomAnonKey(e.target.value)}
+                        placeholder="eyJhbGci..."
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="mt-4 bg-slate-950/50 border border-slate-700 rounded-lg p-3">
+                <p className="text-slate-300 text-sm">{previewModeLabel}</p>
+                <p className="text-slate-400 text-xs mt-1 break-all">
+                  Active Edge URL: <span className="font-mono">{previewEdgeUrl}</span>
+                </p>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  onClick={handleSaveDeploymentSettings}
+                  className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
+                  type="button"
+                >
+                  Save Settings
+                </button>
+                <button
+                  onClick={handleResetDeploymentSettings}
+                  className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                  type="button"
+                >
+                  Reset To Defaults
+                </button>
+              </div>
+
+              {settingsMessage && <p className="text-emerald-300 text-sm mt-3">{settingsMessage}</p>}
+            </div>
+          )}
         </div>
 
         {/* Upload Section */}
@@ -716,6 +886,8 @@ export function HomePage() {
               <li>• Audio analysis uses Web Audio API for real-time feature extraction</li>
               <li>• Analysis includes tempo, key, energy, mood, and more</li>
               <li>• Lyrics transcription uses your local Whisper service</li>
+              <li>• Switch lyrics AI provider in Deployment Settings (Local/OpenAI/Claude/Grok)</li>
+              <li>• Switch between OG database and your own database mode</li>
               <li>• All results can be saved or downloaded as JSON</li>
               <li>• Use the 365 Days Scheduler to plan your music releases</li>
             </ul>

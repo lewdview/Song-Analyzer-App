@@ -183,7 +183,7 @@ export function SchedulerPage() {
               className="inline-flex items-center gap-2 text-purple-300 hover:text-white mb-4 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              Back to Analyzer
+              Back to Tool Drop Analyzer
             </Link>
             <h1 className="text-white text-3xl font-bold flex items-center gap-3">
               <CalendarIcon className="w-8 h-8 text-purple-300" />

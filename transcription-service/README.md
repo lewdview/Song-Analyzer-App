@@ -1,6 +1,7 @@
-# 🎙️ Local Whisper Transcription Service
+# 🎙️ 365 Days of Light and Dark - Transcription Service
 
-A standalone Node.js service that provides local audio transcription using Whisper AI, eliminating the need for OpenAI API calls.
+A standalone Node.js service for the **365 Days of Light and Dark by th3scr1b3 - Tool Drop - Multi Level Song Analyser**.
+It provides local Whisper transcription plus switchable lyrics analysis providers.
 
 ## Quick Start
 
@@ -41,6 +42,16 @@ Response:
     {"start": 0, "end": 0.5, "word": "first"},
     {"start": 0.5, "end": 1.2, "word": "word"}
   ],
+  "lyricsAnalysis": {
+    "mood": ["upbeat", "energetic", "confident"],
+    "emotion": ["joy", "confidence"],
+    "themes": ["ambition", "party"],
+    "sentiment": "positive",
+    "sentimentScore": 0.63,
+    "energyFromLyrics": 0.74,
+    "valenceFromLyrics": 0.81
+  },
+  "lyricsAnalysisProvider": "local",
   "fileName": "your-audio.mp3",
   "duration": 1.23
 }
@@ -50,6 +61,9 @@ Response:
 
 ✅ **Local Processing** - All transcription happens on your machine
 ✅ **Timestamps** - Word-level and segment-level timestamps included
+✅ **Word Timing Fallback** - If model word timestamps fail, local segment-to-word timing is generated
+✅ **Lyrics Intelligence** - Local mood/emotion/theme/sentiment extraction
+✅ **Provider Toggle** - Switch lyrics analysis to OpenAI, Claude, Grok, or local
 ✅ **Fast** - Much faster after first model download
 ✅ **Offline** - Works without internet after model is cached
 ✅ **Zero Cost** - No API fees (after setup)
@@ -83,9 +97,38 @@ Edit `server.js` line 19 to change the Whisper model:
 # Custom port (default: 3001)
 export WHISPER_PORT=3002
 
+# Optional: disable all lyrics analysis
+export ENABLE_LYRICS_ANALYSIS=true
+
+# Optional: minimum transcript length before analysis (default: 24)
+export LOCAL_LYRICS_MIN_CHARS=24
+
+# Prefer word timestamps first (default true)
+export WHISPER_FORCE_WORD_TIMINGS=true
+
+# Default provider: local|openai|claude|grok
+export LYRICS_AI_PROVIDER=local
+
+# Allow frontend override via x-lyrics-ai-provider header
+export ALLOW_LYRICS_PROVIDER_OVERRIDE=true
+
+# Provider keys (only needed for enabled provider)
+export OPENAI_API_KEY=sk-...
+export ANTHROPIC_API_KEY=sk-ant-...
+export XAI_API_KEY=xai-...
+
 # Start with custom port
 npm start
 ```
+
+### Provider Notes
+
+- `local`: no external API calls, always available.
+- `openai`: uses `OPENAI_API_KEY` + `OPENAI_LYRICS_MODEL` (default `gpt-4o-mini`).
+- `claude`: uses `ANTHROPIC_API_KEY` + `ANTHROPIC_LYRICS_MODEL` (default `claude-3-5-sonnet-latest`).
+- `grok`: uses `XAI_API_KEY` (or `GROK_API_KEY`) + `XAI_LYRICS_MODEL` (default `grok-2-latest`).
+- If remote provider fails, service falls back to local analysis automatically.
+- If Whisper cannot return native word timestamps, the service generates approximate word timing from segment text locally.
 
 ## Performance
 
@@ -136,7 +179,7 @@ WHISPER_PORT=3002 npm start
 
 ## Integration
 
-This service is used by your Song Analyzer app's Deno server.
+This service is used by the Tool Drop frontend (`/src/components/AudioAnalyzer.tsx`) and optional Edge Functions.
 
 The server sends requests to `http://localhost:3001/transcribe` automatically.
 

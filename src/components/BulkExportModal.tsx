@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { SongAnalysis } from '@/types';
 import { Button } from '@/components/ui/button';
-import { X, Download, Loader } from 'lucide-react';
+import { X, Download, Loader, Database } from 'lucide-react';
 
 type ExportFormat = 'transcription' | 'lyrics' | 'analysis' | 'complete';
 
@@ -19,6 +19,30 @@ interface BulkExportModalProps {
 export function BulkExportModal({ isOpen, onClose, analyses }: BulkExportModalProps) {
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isExporting) {
+        onClose();
+      }
+    };
+
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isOpen, isExporting, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedFormat(null);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -73,18 +97,8 @@ export function BulkExportModal({ isOpen, onClose, analyses }: BulkExportModalPr
 
         // Build lines using segment structure with word-level timing
         if (a.lyricsSegments && a.lyricsWords && a.lyricsWords.length > 0) {
-          // Create a map of word timing for quick lookup
-          const wordsByTime = new Map();
-          a.lyricsWords.forEach(w => {
-            if (!wordsByTime.has(w.start)) {
-              wordsByTime.set(w.start, []);
-            }
-            wordsByTime.get(w.start).push(w);
-          });
-
           // Process each segment line
           for (const segment of a.lyricsSegments) {
-            const segmentText = segment.text;
             const segmentStart = segment.start;
             
             // Find words that fall within this segment
@@ -114,7 +128,7 @@ export function BulkExportModal({ isOpen, onClose, analyses }: BulkExportModalPr
           },
           lyrics: {
             lrc: lines.join('\n'),
-            lineCount: lines.filter(l => !l.startsWith('[')).length,
+            lineCount: lines.filter((line) => /^\[\d{2}:\d{2}\.\d{2}\]/.test(line)).length,
             wordCount: a.lyricsWords.length,
           },
           metadata: {
@@ -283,22 +297,37 @@ export function BulkExportModal({ isOpen, onClose, analyses }: BulkExportModalPr
       URL.revokeObjectURL(url);
 
       onClose();
+    } catch (error) {
+      console.error('[BulkExportModal] export failed', error);
+      alert('Export failed. Check console for details and try again.');
     } finally {
       setIsExporting(false);
     }
   };
 
   return createPortal(
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]" onClick={onClose}>
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={() => {
+        if (!isExporting) {
+          onClose();
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bulk-export-title"
+    >
       <div
         className="bg-gray-900 rounded-lg border border-gray-700 max-w-2xl w-full mx-4 p-6 max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-white">Export Database</h2>
+          <h2 id="bulk-export-title" className="text-2xl font-bold text-white">Export Database</h2>
           <button
             onClick={onClose}
+            disabled={isExporting}
             className="text-gray-400 hover:text-gray-200 transition-colors"
+            type="button"
           >
             <X className="w-6 h-6" />
           </button>
@@ -313,6 +342,7 @@ export function BulkExportModal({ isOpen, onClose, analyses }: BulkExportModalPr
           <button
             onClick={() => setSelectedFormat('transcription')}
             disabled={isExporting}
+            type="button"
             className={`w-full p-4 rounded-lg border-2 transition-all ${
               selectedFormat === 'transcription'
                 ? 'border-blue-500 bg-blue-500/10'
@@ -334,6 +364,7 @@ export function BulkExportModal({ isOpen, onClose, analyses }: BulkExportModalPr
           <button
             onClick={() => setSelectedFormat('lyrics')}
             disabled={isExporting}
+            type="button"
             className={`w-full p-4 rounded-lg border-2 transition-all ${
               selectedFormat === 'lyrics'
                 ? 'border-cyan-500 bg-cyan-500/10'
@@ -355,6 +386,7 @@ export function BulkExportModal({ isOpen, onClose, analyses }: BulkExportModalPr
           <button
             onClick={() => setSelectedFormat('analysis')}
             disabled={isExporting}
+            type="button"
             className={`w-full p-4 rounded-lg border-2 transition-all ${
               selectedFormat === 'analysis'
                 ? 'border-amber-500 bg-amber-500/10'
@@ -376,6 +408,7 @@ export function BulkExportModal({ isOpen, onClose, analyses }: BulkExportModalPr
           <button
             onClick={() => setSelectedFormat('complete')}
             disabled={isExporting}
+            type="button"
             className={`w-full p-4 rounded-lg border-2 transition-all ${
               selectedFormat === 'complete'
                 ? 'border-purple-500 bg-purple-500/10'
@@ -396,7 +429,10 @@ export function BulkExportModal({ isOpen, onClose, analyses }: BulkExportModalPr
 
         <div className="mt-6 p-4 bg-white/5 rounded-lg border border-gray-700">
           <p className="text-sm text-gray-300">
-            📦 <strong>Database size:</strong> {analyses.length} songs
+            <span className="inline-flex items-center gap-2">
+              <Database className="w-4 h-4 text-blue-400" />
+              <strong>Database size:</strong> {analyses.length} songs
+            </span>
           </p>
           <p className="text-xs text-gray-400 mt-2">
             File will be saved as JSON with timestamp
@@ -406,6 +442,7 @@ export function BulkExportModal({ isOpen, onClose, analyses }: BulkExportModalPr
         <div className="flex gap-3 mt-6">
           <Button
             onClick={onClose}
+            disabled={isExporting}
             className="flex-1 bg-gray-800 hover:bg-gray-700 text-white"
           >
             Cancel

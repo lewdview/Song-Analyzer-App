@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Edit2, Save, X, AlertCircle, CheckCircle } from 'lucide-react';
-import { API_ENDPOINTS, SUPABASE_ANON_KEY } from '@/config/api';
+import { API_ENDPOINTS, getJsonHeaders } from '@/config/api';
 import type { SongAnalysis, LyricSegment, LyricWord } from '@/App';
 
 interface LyricEditorProps {
@@ -161,11 +161,7 @@ export function LyricEditor({ analysis, onUpdate, isEnabled = false, onClose }: 
             
             const saveResponse = await fetch(API_ENDPOINTS.analyses.save, {
               method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                'apikey': SUPABASE_ANON_KEY,
-                'Content-Type': 'application/json',
-              },
+              headers: getJsonHeaders(),
               body: JSON.stringify({ analyses: [sanitizedAnalysis] }),
             });
             

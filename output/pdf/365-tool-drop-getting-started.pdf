@@ -1,0 +1,196 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
+endobj
+4 0 obj
+<< /Length 1359 >>
+stream
+0.970 0.980 1.000 rg 0.00 0.00 612.00 792.00 re f
+0.090 0.150 0.290 rg 0.00 512.00 612.00 280.00 re f
+0.970 0.640 0.170 rg 54.00 534.00 188.00 26.00 re f
+BT /F2 12.00 Tf 0.090 0.150 0.290 rg 1 0 0 1 68.00 552.00 Tm (365 TOOL DROP) Tj ET
+BT /F2 28.00 Tf 1.000 1.000 1.000 rg 1 0 0 1 54.00 460.00 Tm (Song Analyzer) Tj ET
+BT /F2 28.00 Tf 1.000 1.000 1.000 rg 1 0 0 1 54.00 426.00 Tm (Getting Started Guide) Tj ET
+BT /F1 14.00 Tf 0.870 0.920 1.000 rg 1 0 0 1 54.00 380.00 Tm (Buyer-ready setup guide for your Gumroad delivery) Tj ET
+1.000 1.000 1.000 rg 54.00 204.00 504.00 140.00 re f
+0.830 0.870 0.940 RG 1.00 w 54.00 344.00 m 558.00 344.00 l S
+BT /F2 13.00 Tf 0.110 0.150 0.220 rg 1 0 0 1 72.00 316.00 Tm (What this guide covers) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 72.00 292.00 Tm (- Local Whisper transcription setup) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 72.00 274.00 Tm (- New local mood/sentiment/themes engine) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 72.00 256.00 Tm (- First file workflow in under 10 minutes) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 72.00 238.00 Tm (- Packaging notes for Gumroad buyers) Tj ET
+BT /F1 9.00 Tf 0.280 0.320 0.380 rg 1 0 0 1 54.00 120.00 Tm (Version: 1.0    Date: 2026-02-25) Tj ET
+BT /F2 10.00 Tf 0.150 0.200 0.330 rg 1 0 0 1 54.00 102.00 Tm (Brand: 365 Tool Drop) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Length 3651 >>
+stream
+0.090 0.150 0.290 rg 0.00 750.00 612.00 42.00 re f
+BT /F2 12.00 Tf 1.000 1.000 1.000 rg 1 0 0 1 54.00 764.00 Tm (365 Tool Drop) Tj ET
+BT /F1 10.00 Tf 0.900 0.940 1.000 rg 1 0 0 1 368.00 764.00 Tm (Song Analyzer - Getting Started) Tj ET
+0.850 0.880 0.930 RG 0.80 w 54.00 52.00 m 558.00 52.00 l S
+BT /F1 9.00 Tf 0.350 0.390 0.460 rg 1 0 0 1 518.00 36.00 Tm (Page 2) Tj ET
+BT /F2 18.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 708.00 Tm (Quick Start At A Glance) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 682.00 Tm (This product runs as two local services: the web app and a local Whisper transcription) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 667.00 Tm (service. No OpenAI dependency is required for the mood and sentiment output in this) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 652.00 Tm (version.) Tj ET
+BT /F2 13.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 633.00 Tm (System Requirements) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 615.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 615.00 Tm (macOS, Linux, or Windows with Node.js 18+ and npm.) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 600.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 600.00 Tm (About 2 to 4 GB free disk for dependencies and Whisper models.) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 585.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 585.00 Tm (Internet only needed once for model download; daily usage can stay local.) Tj ET
+BT /F2 13.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 570.00 Tm (Files Included In This Drop) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 552.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 552.00 Tm (Main app: /Song Analyzer App) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 537.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 537.00 Tm (Transcription service: /Song Analyzer App/transcription-service) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 522.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 522.00 Tm (Guide PDF: /output/pdf/365-tool-drop-getting-started.pdf) Tj ET
+BT /F2 18.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 507.00 Tm (Install And Run) Tj ET
+BT /F2 13.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 481.00 Tm (Step 1: Start the transcription service) Tj ET
+0.930 0.950 0.980 rg 54.00 418.00 504.00 55.00 re f
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 455.00 Tm (cd /path/to/Song Analyzer App/transcription-service) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 442.00 Tm (npm install) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 429.00 Tm (npm start) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 408.00 Tm (Keep this terminal open. On first run the Whisper model downloads and initialization) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 393.00 Tm (can take several minutes.) Tj ET
+BT /F2 13.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 374.00 Tm (Step 2: Start the web app) Tj ET
+0.930 0.950 0.980 rg 54.00 311.00 504.00 55.00 re f
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 348.00 Tm (cd /path/to/Song Analyzer App) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 335.00 Tm (npm install) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 322.00 Tm (npm run dev) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 301.00 Tm (Open the local URL shown by Vite. By default the app points to the local transcription) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 286.00 Tm (service at http://localhost:3001.) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Length 3021 >>
+stream
+0.090 0.150 0.290 rg 0.00 750.00 612.00 42.00 re f
+BT /F2 12.00 Tf 1.000 1.000 1.000 rg 1 0 0 1 54.00 764.00 Tm (365 Tool Drop) Tj ET
+BT /F1 10.00 Tf 0.900 0.940 1.000 rg 1 0 0 1 368.00 764.00 Tm (Song Analyzer - Getting Started) Tj ET
+0.850 0.880 0.930 RG 0.80 w 54.00 52.00 m 558.00 52.00 l S
+BT /F1 9.00 Tf 0.350 0.390 0.460 rg 1 0 0 1 518.00 36.00 Tm (Page 3) Tj ET
+BT /F2 18.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 708.00 Tm (First Analysis Workflow) Tj ET
+BT /F2 13.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 682.00 Tm (Upload and process your first track) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 664.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 664.00 Tm (Upload an MP3 or WAV in the web UI.) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 649.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 649.00 Tm (The app extracts audio features first \(tempo, key, energy, valence, genre, mood\).) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 634.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 634.00 Tm (The transcription service returns text, segments, words, and local lyricsAnalysis.) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 619.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 619.00 Tm (Final results combine audio and lyrics signals in one analysis card.) Tj ET
+BT /F2 13.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 604.00 Tm (Expected output fields) Tj ET
+0.930 0.950 0.980 rg 54.00 437.00 504.00 159.00 re f
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 578.00 Tm ({) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 565.00 Tm ("lyricsAnalysis": {) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 552.00 Tm ("mood": ["upbeat", "energetic"],) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 539.00 Tm ("emotion": ["joy", "confidence"],) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 526.00 Tm ("themes": ["ambition", "party"],) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 513.00 Tm ("sentiment": "positive|negative|neutral|mixed",) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 500.00 Tm ("sentimentScore": 0.63,) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 487.00 Tm ("energyFromLyrics": 0.74,) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 474.00 Tm ("valenceFromLyrics": 0.81) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 461.00 Tm (}) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 448.00 Tm (}) Tj ET
+BT /F2 13.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 427.00 Tm (Where this comes from) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 409.00 Tm (Mood and sentiment are computed locally with a rule-based analyzer in the) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 394.00 Tm (transcription service. It uses lexicons, phrase boosts, negation handling, and) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 379.00 Tm (energy/valence heuristics.) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Length 4018 >>
+stream
+0.090 0.150 0.290 rg 0.00 750.00 612.00 42.00 re f
+BT /F2 12.00 Tf 1.000 1.000 1.000 rg 1 0 0 1 54.00 764.00 Tm (365 Tool Drop) Tj ET
+BT /F1 10.00 Tf 0.900 0.940 1.000 rg 1 0 0 1 368.00 764.00 Tm (Song Analyzer - Getting Started) Tj ET
+0.850 0.880 0.930 RG 0.80 w 54.00 52.00 m 558.00 52.00 l S
+BT /F1 9.00 Tf 0.350 0.390 0.460 rg 1 0 0 1 518.00 36.00 Tm (Page 4) Tj ET
+BT /F2 18.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 708.00 Tm (Configuration For Power Users) Tj ET
+BT /F2 13.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 682.00 Tm (Local lyrics analysis toggles) Tj ET
+0.930 0.950 0.980 rg 54.00 606.00 504.00 68.00 re f
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 656.00 Tm (export ENABLE_LOCAL_LYRICS_ANALYSIS=true) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 643.00 Tm (export LOCAL_LYRICS_MIN_CHARS=24) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 630.00 Tm (export WHISPER_PORT=3001) Tj ET
+BT /F3 9.50 Tf 0.100 0.130 0.180 rg 1 0 0 1 62.00 617.00 Tm (npm start) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 596.00 Tm (Set ENABLE_LOCAL_LYRICS_ANALYSIS=false if you want transcription only. Increase) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 581.00 Tm (LOCAL_LYRICS_MIN_CHARS if short clips are producing noisy labels.) Tj ET
+BT /F2 13.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 562.00 Tm (Troubleshooting) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 544.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 544.00 Tm (If transcription fails, confirm the service is running at) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 529.00 Tm (http://localhost:3001/health.) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 514.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 514.00 Tm (If browser cannot connect, check firewall rules and mixed-content HTTPS) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 499.00 Tm (restrictions.) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 484.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 484.00 Tm (If output quality is poor, switch to a larger Whisper model and restart the) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 469.00 Tm (service.) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 454.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 454.00 Tm (If start-up is slow on first run, wait for model download and warm-up to finish.) Tj ET
+BT /F2 18.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 439.00 Tm (Gumroad Packaging Notes) Tj ET
+BT /F2 13.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 413.00 Tm (Recommended product bundle) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 395.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 395.00 Tm (Include this PDF guide in the product root.) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 380.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 380.00 Tm (Include a short README with exact start commands and your support email.) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 365.00 Tm (-) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 365.00 Tm (Provide a one-line value statement: local transcription plus local lyric) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 68.00 350.00 Tm (intelligence.) Tj ET
+BT /F2 13.00 Tf 0.080 0.120 0.170 rg 1 0 0 1 54.00 335.00 Tm (Suggested listing copy \(short\)) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 317.00 Tm (365 Tool Drop: Song Analyzer is a local-first music analysis toolkit that transcribes) Tj ET
+BT /F1 11.00 Tf 0.140 0.170 0.220 rg 1 0 0 1 54.00 302.00 Tm (audio and generates mood, emotion, themes, and sentiment without requiring OpenAI.) Tj ET
+BT /F1 9.00 Tf 0.280 0.320 0.380 rg 1 0 0 1 54.00 275.00 Tm (Need support? Reply to your Gumroad receipt email with your OS, Node version, and error logs from both) Tj ET
+BT /F1 9.00 Tf 0.280 0.320 0.380 rg 1 0 0 1 54.00 263.00 Tm (terminals.) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 12 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R /F2 2 0 R /F3 3 0 R >> >> /Contents 4 0 R >>
+endobj
+9 0 obj
+<< /Type /Page /Parent 12 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R /F2 2 0 R /F3 3 0 R >> >> /Contents 5 0 R >>
+endobj
+10 0 obj
+<< /Type /Page /Parent 12 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R /F2 2 0 R /F3 3 0 R >> >> /Contents 6 0 R >>
+endobj
+11 0 obj
+<< /Type /Page /Parent 12 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 1 0 R /F2 2 0 R /F3 3 0 R >> >> /Contents 7 0 R >>
+endobj
+12 0 obj
+<< /Type /Pages /Kids [8 0 R 9 0 R 10 0 R 11 0 R] /Count 4 >>
+endobj
+13 0 obj
+<< /Type /Catalog /Pages 12 0 R >>
+endobj
+xref
+0 14
+0000000000 65535 f 
+0000000015 00000 n 
+0000000085 00000 n 
+0000000160 00000 n 
+0000000228 00000 n 
+0000001638 00000 n 
+0000005340 00000 n 
+0000008412 00000 n 
+0000012481 00000 n 
+0000012628 00000 n 
+0000012775 00000 n 
+0000012923 00000 n 
+0000013071 00000 n 
+0000013149 00000 n 
+trailer
+<< /Size 14 /Root 13 0 R >>
+startxref
+13200
+%%EOF

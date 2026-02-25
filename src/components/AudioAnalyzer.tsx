@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import type { SongAnalysis, LyricsAnalysis, LyricSegment, LyricWord } from '@/types';
 import { useAnalysisStore } from '@/store/analysisStore';
 import { useSupabaseAPI } from '@/hooks/useSupabaseAPI';
+import { getLyricsAiProvider } from '@/config/api';
 import { computeBufferHash } from '@/utils/fileHash';
 import { Loader2, SkipForward, RefreshCw } from 'lucide-react';
 
@@ -956,6 +957,9 @@ const transcribeLyrics = async (
 
       const response = await fetch(`${whisperServiceUrl}/transcribe`, {
         method: 'POST',
+        headers: {
+          'x-lyrics-ai-provider': getLyricsAiProvider(),
+        },
         body: formData,
       });
 
@@ -980,31 +984,66 @@ const transcribeLyrics = async (
       // Normalize potential Whisper-like shapes
       // Expected possibilities: { transcription: string, segments: [{ start, end, text }], words: [{ start, end, word }], lyricsAnalysis }
       const segments: LyricSegment[] | undefined = Array.isArray(data.segments)
-        ? data.segments.map((s: any) => ({
-            start: typeof s.start === 'number' ? s.start : parseFloat(s.start) || 0,
-            end: typeof s.end === 'number' ? s.end : parseFloat(s.end) || 0,
-            text: (s.text || '').trim(),
-          }))
+        ? data.segments
+            .map((s: any) => ({
+              start: typeof s.start === 'number' ? s.start : parseFloat(s.start) || 0,
+              end: typeof s.end === 'number' ? s.end : parseFloat(s.end) || 0,
+              text: (s.text || '').trim(),
+            }))
+            .filter((s: LyricSegment) => s.text.length > 0)
         : undefined;
 
       const words: LyricWord[] | undefined = Array.isArray(data.words)
-        ? data.words.map((w: any) => ({
-            start: typeof w.start === 'number' ? w.start : parseFloat(w.start) || 0,
-            end: typeof w.end === 'number' ? w.end : parseFloat(w.end) || 0,
-            word: (w.word || w.text || '').trim(),
-          }))
+        ? data.words
+            .map((w: any) => ({
+              start: typeof w.start === 'number' ? w.start : parseFloat(w.start) || 0,
+              end: typeof w.end === 'number' ? w.end : parseFloat(w.end) || 0,
+              word: (w.word || w.text || '').trim(),
+            }))
+            .filter((w: LyricWord) => w.word.length > 0)
         : undefined;
+
+      const directTranscription = String(data.transcription || data.text || '').trim();
+      const transcriptionFromSegments = segments && segments.length > 0
+        ? segments.map((s) => s.text).join('\n').trim()
+        : '';
+      const transcriptionFromWords = words && words.length > 0
+        ? words.map((w) => w.word).join(' ').trim()
+        : '';
+      const finalLyrics = directTranscription || transcriptionFromSegments || transcriptionFromWords || '[No transcription available]';
       
       return {
-        lyrics: data.transcription || (segments ? segments.map(s => s.text).join('\n') : '[No transcription available]'),
+        lyrics: finalLyrics,
         segments,
         words,
         analysis: data.lyricsAnalysis || null,
       };
     } catch (error) {
       console.error('Transcription error:', error);
+
+      const rawMessage = error instanceof Error ? error.message : 'Unknown error';
+      const failedToFetch = rawMessage.toLowerCase().includes('failed to fetch');
+      const mixedContent = typeof window !== 'undefined'
+        && window.location.protocol === 'https:'
+        && whisperServiceUrl.startsWith('http://');
+
+      const diagnostics = [
+        `Target service: ${whisperServiceUrl}/transcribe`,
+        `Health check: ${whisperServiceUrl}/health`,
+      ];
+
+      if (failedToFetch) {
+        diagnostics.push('Browser could not connect to the local Whisper service.');
+        diagnostics.push('If you just changed env/config, restart the Vite app and the Whisper service.');
+      }
+
+      if (mixedContent) {
+        diagnostics.push('You are running the app on HTTPS but Whisper is HTTP localhost (mixed content blocked).');
+        diagnostics.push('Run the app locally on http://localhost (npm run dev), or serve Whisper over HTTPS.');
+      }
+
       return {
-        lyrics: `[Transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}]\n\nMake sure the local Whisper service is running at ${whisperServiceUrl}/health.`,
+        lyrics: `[Transcription failed: ${rawMessage}]\n\n${diagnostics.join('\n')}`,
         analysis: null
       };
     }
