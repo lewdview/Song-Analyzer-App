@@ -5,7 +5,7 @@ import {
   Settings, Music, X, Pencil, Save, XCircle,
   Mic2, Sparkles, Clock
 } from 'lucide-react';
-import type { LyricWord, LyricSegment, SongAnalysis } from '@/App';
+import type { LyricWord, SongAnalysis } from '@/App';
 import { LyricEditor } from '@/components/LyricEditor';
 
 // ============================================================================
@@ -192,7 +192,7 @@ function formatTime(seconds: number): string {
 
 function getRandomTheme(): Theme {
   const themes: Theme[] = ['dark', 'neon', 'sunset', 'ocean', 'aurora', 'midnight', 'tropical', 'cherry', 'galaxy', 'forest', 'lavender', 'fire', 'arctic', 'synthwave'];
-  return themes[Math.floor(Math.random() * themes.length)];
+  return themes[Math.floor(Math.random() * themes.length)] as Theme;
 }
 
 // ============================================================================
@@ -287,7 +287,6 @@ function AnimatedWord({ word, isActive, isPast, isLineCurrent, currentTime, them
     textColor = pastColor;
   } else if (isActive) {
     // Use gradient for active word to show progress
-    const percent = fillProgress * 100;
     textColor = 'transparent';
     textShadow = `0 0 20px ${themeStyle.glow}`;
   }
@@ -423,11 +422,9 @@ interface LyricLineProps {
   theme: Theme;
   fontSize: FontSize;
   onSeek: (time: number) => void;
-  onEdit: (index: number) => void;
-  totalLines: number;
 }
 
-function LyricLine({ line, index, currentLineIndex, currentTime, theme, fontSize, onSeek, onEdit, totalLines }: LyricLineProps) {
+function LyricLine({ line, index, currentLineIndex, currentTime, theme, fontSize, onSeek }: LyricLineProps) {
   const lineRef = useRef<HTMLDivElement>(null);
   const [hasAnimated, setHasAnimated] = useState(false);
   const isCurrent = index === currentLineIndex;
@@ -963,7 +960,7 @@ export function KaraokePage() {
   const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => getRandomTheme()); // Random theme on load
   const [editingLineIndex, setEditingLineIndex] = useState<number | null>(null);
-  const [showCountdown, setShowCountdown] = useState(true);
+  const [showCountdown] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [showLyricEditor, setShowLyricEditor] = useState(false);
 
@@ -971,7 +968,6 @@ export function KaraokePage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const lyricsRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
-  const lastScrollTime = useRef(0);
 
   // Load data on mount
   useEffect(() => {
@@ -1420,8 +1416,6 @@ export function KaraokePage() {
             theme={theme}
             fontSize={fontSize}
             onSeek={seekTo}
-            onEdit={setEditingLineIndex}
-            totalLines={lines.length}
           />
         ))}
 

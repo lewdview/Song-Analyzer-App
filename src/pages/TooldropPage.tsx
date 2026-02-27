@@ -49,7 +49,7 @@ function heatmapBackground(point: HeatmapPoint): string {
 }
 
 export function TooldropPage() {
-  const isDevMode = import.meta.env.DEV;
+  const isDevMode = (import.meta as any).env.DEV;
   const [gateState, setGateState] = useState<GateState>('loading');
   const [gateMessage, setGateMessage] = useState('');
   const [profile, setProfile] = useState<SharedProfile | null>(null);

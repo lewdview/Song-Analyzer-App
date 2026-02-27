@@ -60,7 +60,7 @@ const router = createBrowserRouter([
         path: 'karaoke',
         element: <KaraokePage />,
       },
-      ...(import.meta.env.DEV
+      ...((import.meta as any).env.DEV
         ? [
           {
             path: 'original',

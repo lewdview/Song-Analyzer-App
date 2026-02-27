@@ -111,7 +111,6 @@ export function HomePage() {
     deduplicateAnalyses,
     removeNoHashAnalyses,
     isLoading: apiLoading,
-    error: apiError,
   } = useSupabaseAPI();
 
   const [isRunningMaintenance, setIsRunningMaintenance] = useState(false);
@@ -500,7 +499,7 @@ export function HomePage() {
               365 Days Scheduler
             </Link>
 
-            {import.meta.env.DEV && (
+            {(import.meta as any).env.DEV && (
               <Link
                 to="/original"
                 className="px-6 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors flex items-center gap-2"
@@ -670,7 +669,6 @@ export function HomePage() {
                   multiple
                   // @ts-expect-error - webkitdirectory is not in TypeScript types
                   webkitdirectory="true"
-                  // @ts-expect-error
                   directory="true"
                   onChange={handleDirectorySelect}
                   className="hidden"
@@ -841,8 +839,8 @@ export function HomePage() {
               <button
                 onClick={() => setActiveTab('results')}
                 className={`px-6 py-3 transition-colors ${activeTab === 'results'
-                    ? 'text-white border-b-2 border-purple-400'
-                    : 'text-purple-300 hover:text-white'
+                  ? 'text-white border-b-2 border-purple-400'
+                  : 'text-purple-300 hover:text-white'
                   }`}
                 role="tab"
                 aria-selected={activeTab === 'results'}
@@ -855,8 +853,8 @@ export function HomePage() {
               <button
                 onClick={() => setActiveTab('collection')}
                 className={`px-6 py-3 transition-colors ${activeTab === 'collection'
-                    ? 'text-white border-b-2 border-purple-400'
-                    : 'text-purple-300 hover:text-white'
+                  ? 'text-white border-b-2 border-purple-400'
+                  : 'text-purple-300 hover:text-white'
                   }`}
                 role="tab"
                 aria-selected={activeTab === 'collection'}
