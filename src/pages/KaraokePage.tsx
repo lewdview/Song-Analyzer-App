@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { 
-  Play, Pause, SkipBack, SkipForward, 
-  Volume2, VolumeX, Maximize, Minimize, 
+import {
+  Play, Pause, SkipBack, SkipForward,
+  Volume2, VolumeX, Maximize, Minimize,
   Settings, Music, X, Pencil, Save, XCircle,
   Mic2, Sparkles, Clock
 } from 'lucide-react';
@@ -28,22 +28,22 @@ type Theme = 'dark' | 'light' | 'neon' | 'sunset' | 'ocean' | 'aurora' | 'midnig
 // ============================================================================
 
 const THEME_STYLES: Record<Theme, { background: string; color: string; accent: string; glow: string; unfilledColor: string }> = {
-  dark: { 
-    background: 'linear-gradient(135deg, #1a1a2e 0%, #581c87 50%, #1a1a2e 100%)', 
+  dark: {
+    background: 'linear-gradient(135deg, #1a1a2e 0%, #581c87 50%, #1a1a2e 100%)',
     color: 'white',
     accent: '#a855f7',
     glow: 'rgba(168, 85, 247, 0.6)',
     unfilledColor: 'rgba(255,255,255,0.4)',
   },
-  light: { 
-    background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 30%, #e9d5ff 50%, #f3e8ff 70%, #faf5ff 100%)', 
+  light: {
+    background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 30%, #e9d5ff 50%, #f3e8ff 70%, #faf5ff 100%)',
     color: '#1e1b4b',
     accent: '#7c3aed',
     glow: 'rgba(124, 58, 237, 0.5)',
     unfilledColor: 'rgba(30, 27, 75, 0.4)',
   },
-  neon: { 
-    background: 'radial-gradient(ellipse at center, #0a0a0a 0%, #000 100%)', 
+  neon: {
+    background: 'radial-gradient(ellipse at center, #0a0a0a 0%, #000 100%)',
     color: '#4ade80',
     accent: '#22d3ee',
     glow: 'rgba(34, 211, 238, 0.8)',
@@ -170,7 +170,7 @@ function getKaraokeData(): SongAnalysis | null {
   } catch {
     // Cross-origin access blocked
   }
-  
+
   // Fallback to localStorage
   const stored = localStorage.getItem('karaokeData');
   if (stored) {
@@ -180,7 +180,7 @@ function getKaraokeData(): SongAnalysis | null {
       return null;
     }
   }
-  
+
   return null;
 }
 
@@ -201,9 +201,9 @@ function getRandomTheme(): Theme {
 
 function BackgroundVisualizer({ theme, isPlaying }: { theme: Theme; isPlaying: boolean }) {
   const themeStyle = THEME_STYLES[theme];
-  
+
   // Create animated bars
-  const bars = useMemo(() => 
+  const bars = useMemo(() =>
     Array.from({ length: 32 }, (_, i) => ({
       id: i,
       height: 20 + Math.random() * 60,
@@ -282,7 +282,7 @@ function AnimatedWord({ word, isActive, isPast, isLineCurrent, currentTime, them
   // Determine the color based on state
   let textColor = unfilledColor;
   let textShadow = 'none';
-  
+
   if (isPast && isLineCurrent) {
     textColor = pastColor;
   } else if (isActive) {
@@ -318,7 +318,7 @@ function AnimatedWord({ word, isActive, isPast, isLineCurrent, currentTime, them
 // ============================================================================
 
 function ParticleEffect({ theme }: { theme: Theme }) {
-  const particles = useMemo(() => 
+  const particles = useMemo(() =>
     Array.from({ length: 12 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
@@ -366,7 +366,7 @@ interface CountdownProps {
 function Countdown({ timeUntilStart, theme }: CountdownProps) {
   const themeStyle = THEME_STYLES[theme];
   const count = Math.ceil(timeUntilStart);
-  
+
   if (count <= 0 || count > 5) return null;
 
   return (
@@ -436,12 +436,12 @@ function LyricLine({ line, index, currentLineIndex, currentTime, theme, fontSize
   const isNearUpcoming = index > currentLineIndex && index <= currentLineIndex + 2;
   const isFarPast = index < currentLineIndex - 1;
   const isVeryFarPast = index < currentLineIndex - 2;
-  
+
   // Determine if line is "active" (visible in the near range)
   const isInView = isCurrent || isUpcoming || isNearUpcoming || (isPast && !isVeryFarPast);
-  
+
   const themeStyle = THEME_STYLES[theme];
-  
+
   // Auto-scroll when this line becomes current
   useEffect(() => {
     if (isCurrent && lineRef.current) {
@@ -451,7 +451,7 @@ function LyricLine({ line, index, currentLineIndex, currentTime, theme, fontSize
       });
     }
   }, [isCurrent]);
-  
+
   // Track when line first comes into view for entrance animation
   useEffect(() => {
     if (isInView && !hasAnimated) {
@@ -465,24 +465,24 @@ function LyricLine({ line, index, currentLineIndex, currentTime, theme, fontSize
       // Lines that haven't animated yet start off-screen
       return 'translateY(40px)';
     }
-    
+
     if (isCurrent) {
       return 'translateY(0) scale(1.02)';
     }
-    
+
     if (isUpcoming) {
       return 'translateY(0)';
     }
-    
+
     if (isPast && !isVeryFarPast) {
       // Past lines slide up slightly
       return 'translateY(-8px)';
     }
-    
+
     if (isVeryFarPast) {
       return 'translateY(-20px)';
     }
-    
+
     return 'translateY(0)';
   };
 
@@ -508,7 +508,7 @@ function LyricLine({ line, index, currentLineIndex, currentTime, theme, fontSize
         filter: 'none',
       };
     }
-    
+
     if (isUpcoming) {
       return {
         ...base,
@@ -517,7 +517,7 @@ function LyricLine({ line, index, currentLineIndex, currentTime, theme, fontSize
         filter: 'none',
       };
     }
-    
+
     if (isNearUpcoming) {
       return {
         ...base,
@@ -526,7 +526,7 @@ function LyricLine({ line, index, currentLineIndex, currentTime, theme, fontSize
         filter: 'blur(0.5px)',
       };
     }
-    
+
     if (isPast && !isFarPast) {
       return {
         ...base,
@@ -535,7 +535,7 @@ function LyricLine({ line, index, currentLineIndex, currentTime, theme, fontSize
         filter: 'blur(1px)',
       };
     }
-    
+
     if (isFarPast && !isVeryFarPast) {
       return {
         ...base,
@@ -544,7 +544,7 @@ function LyricLine({ line, index, currentLineIndex, currentTime, theme, fontSize
         filter: 'blur(1.5px)',
       };
     }
-    
+
     if (isVeryFarPast) {
       return {
         ...base,
@@ -553,7 +553,7 @@ function LyricLine({ line, index, currentLineIndex, currentTime, theme, fontSize
         filter: 'blur(2px)',
       };
     }
-    
+
     // Future lines (far) - start hidden until they come into view
     return {
       ...base,
@@ -575,7 +575,7 @@ function LyricLine({ line, index, currentLineIndex, currentTime, theme, fontSize
     };
     const badge = labels[line.type];
     if (!badge) return null;
-    
+
     return (
       <span
         style={{
@@ -602,10 +602,10 @@ function LyricLine({ line, index, currentLineIndex, currentTime, theme, fontSize
   return (
     <div ref={lineRef} style={{ ...getLineStyle(), position: 'relative' }}>
       <SectionBadge />
-      
+
       {/* Particle effects for current line */}
       {isCurrent && <ParticleEffect theme={theme} />}
-      
+
       <div onClick={() => onSeek(line.start)} style={{ display: 'inline' }}>
         {line.words.map((word, widx) => {
           const isWordActive = currentTime >= word.start && currentTime < word.end;
@@ -628,7 +628,7 @@ function LyricLine({ line, index, currentLineIndex, currentTime, theme, fontSize
           );
         })}
       </div>
-      
+
       {/* Line progress indicator - shown below current line */}
       {isCurrent && (
         <div
@@ -672,7 +672,7 @@ function SettingsPanel({ fontSize, theme, onFontSizeChange, onThemeChange, onClo
     borderRadius: 10,
     fontSize: '0.875rem',
     textTransform: 'capitalize',
-    background: isActive 
+    background: isActive
       ? `linear-gradient(135deg, ${COLORS.purple}, ${COLORS.pink})`
       : 'rgba(255,255,255,0.08)',
     border: isActive ? 'none' : '1px solid rgba(255,255,255,0.1)',
@@ -702,16 +702,16 @@ function SettingsPanel({ fontSize, theme, onFontSizeChange, onThemeChange, onClo
   };
 
   return (
-    <div style={{ 
-      position: 'absolute', 
-      top: 70, 
-      right: 16, 
-      background: 'rgba(0,0,0,0.95)', 
+    <div style={{
+      position: 'absolute',
+      top: 70,
+      right: 16,
+      background: 'rgba(0,0,0,0.95)',
       backdropFilter: 'blur(20px)',
-      borderRadius: 20, 
-      padding: 24, 
-      zIndex: 50, 
-      minWidth: 360, 
+      borderRadius: 20,
+      padding: 24,
+      zIndex: 50,
+      minWidth: 360,
       border: '1px solid rgba(255,255,255,0.1)',
       boxShadow: '0 25px 50px rgba(0,0,0,0.6)',
       animation: 'settingsSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -749,7 +749,7 @@ function SettingsPanel({ fontSize, theme, onFontSizeChange, onThemeChange, onClo
           Close
         </button>
       </div>
-      
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
         <div>
           <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'white' }}>
@@ -763,7 +763,7 @@ function SettingsPanel({ fontSize, theme, onFontSizeChange, onThemeChange, onClo
             ))}
           </div>
         </div>
-        
+
         <div>
           <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'white' }}>
             Theme ({Object.keys(themePreview).length} available)
@@ -777,12 +777,12 @@ function SettingsPanel({ fontSize, theme, onFontSizeChange, onThemeChange, onClo
           </div>
         </div>
       </div>
-      
-      <div style={{ 
-        marginTop: 24, 
-        paddingTop: 20, 
-        borderTop: '1px solid rgba(255,255,255,0.08)', 
-        fontSize: '0.75rem', 
+
+      <div style={{
+        marginTop: 24,
+        paddingTop: 20,
+        borderTop: '1px solid rgba(255,255,255,0.08)',
+        fontSize: '0.75rem',
         opacity: 0.5,
         lineHeight: 2,
         color: 'white',
@@ -814,17 +814,17 @@ interface LyricEditModalProps {
 function LyricEditModal({ line, lineIndex, onSave, onClose }: LyricEditModalProps) {
   const [editText, setEditText] = useState(line.text);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  
+
   useEffect(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
   }, []);
-  
+
   const handleSave = () => {
     onSave(lineIndex, editText.trim());
     onClose();
   };
-  
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -833,7 +833,7 @@ function LyricEditModal({ line, lineIndex, onSave, onClose }: LyricEditModalProp
       onClose();
     }
   };
-  
+
   return (
     <div
       style={{
@@ -873,7 +873,7 @@ function LyricEditModal({ line, lineIndex, onSave, onClose }: LyricEditModalProp
             <XCircle style={{ width: 20, height: 20 }} />
           </button>
         </div>
-        
+
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', color: COLORS.gray, fontSize: '0.875rem', marginBottom: 8 }}>
             Timestamp: {formatTime(line.start)} - {formatTime(line.end)}
@@ -900,11 +900,11 @@ function LyricEditModal({ line, lineIndex, onSave, onClose }: LyricEditModalProp
             }}
           />
         </div>
-        
+
         <div style={{ fontSize: '0.75rem', color: COLORS.gray, marginBottom: 20 }}>
           <p>💡 Press <strong>Enter</strong> to save, <strong>Escape</strong> to cancel</p>
         </div>
-        
+
         <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
           <button
             onClick={onClose}
@@ -966,7 +966,7 @@ export function KaraokePage() {
   const [showCountdown, setShowCountdown] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [showLyricEditor, setShowLyricEditor] = useState(false);
-  
+
   const audioRef = useRef<HTMLAudioElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lyricsRef = useRef<HTMLDivElement>(null);
@@ -993,11 +993,11 @@ export function KaraokePage() {
       } catch (error) {
         console.warn('Failed to load saved lyrics:', error);
       }
-      
+
       setAnalysis(data);
       document.title = `🎤 ${data.fileName} - Karaoke`;
     }
-    
+
     // Set up BroadcastChannel for time sync
     try {
       channelRef.current = new BroadcastChannel('karaoke-sync');
@@ -1010,7 +1010,7 @@ export function KaraokePage() {
     } catch {
       // BroadcastChannel not supported
     }
-    
+
     return () => {
       localStorage.removeItem('karaokeData');
       channelRef.current?.close();
@@ -1030,12 +1030,12 @@ export function KaraokePage() {
       ended: () => { setIsPlaying(false); setCurrentTime(0); },
     };
 
-    Object.entries(handlers).forEach(([event, handler]) => 
+    Object.entries(handlers).forEach(([event, handler]) =>
       audio.addEventListener(event, handler)
     );
 
     return () => {
-      Object.entries(handlers).forEach(([event, handler]) => 
+      Object.entries(handlers).forEach(([event, handler]) =>
         audio.removeEventListener(event, handler)
       );
     };
@@ -1052,7 +1052,7 @@ export function KaraokePage() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      
+
       const actions: Record<string, () => void> = {
         'Space': () => { e.preventDefault(); togglePlay(); },
         'ArrowLeft': () => { e.preventDefault(); skip(-5); },
@@ -1064,10 +1064,10 @@ export function KaraokePage() {
           else if (showSettings) setShowSettings(false);
         },
       };
-      
+
       actions[e.code]?.();
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showSettings, editingLineIndex]);
@@ -1103,83 +1103,83 @@ export function KaraokePage() {
 
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;
-    document.fullscreenElement 
-      ? document.exitFullscreen() 
+    document.fullscreenElement
+      ? document.exitFullscreen()
       : containerRef.current.requestFullscreen();
   }, []);
 
   // Handle saving edited lyrics
   const handleSaveEdit = useCallback((lineIndex: number, newText: string) => {
     if (!analysis) return;
-    
+
     // Update the lyricsSegments with the new text
-    const updatedSegments = analysis.lyricsSegments?.map((seg, idx) => 
+    const updatedSegments = analysis.lyricsSegments?.map((seg, idx) =>
       idx === lineIndex ? { ...seg, text: newText } : seg
     );
-    
+
     // Update lyricsWords to match the new text for this segment
     const segment = analysis.lyricsSegments?.[lineIndex];
     if (segment) {
       const newWords = newText.split(/\s+/).filter(w => w.length > 0);
       const segmentDuration = segment.end - segment.start;
       const wordDuration = segmentDuration / newWords.length;
-      
+
       const newWordObjects = newWords.map((word, widx) => ({
         word,
         start: segment.start + (widx * wordDuration),
         end: segment.start + ((widx + 1) * wordDuration),
       }));
-      
+
       // Replace words in this segment's time range
       const updatedWords = [
         ...(analysis.lyricsWords?.filter(w => w.end < segment.start) || []),
         ...newWordObjects,
         ...(analysis.lyricsWords?.filter(w => w.start > segment.end) || []),
       ];
-      
+
       setAnalysis({
         ...analysis,
         lyricsSegments: updatedSegments,
         lyricsWords: updatedWords,
       });
     }
-    
+
     setEditingLineIndex(null);
   }, [analysis]);
 
   // Process lyrics into lines
   const { currentLineIndex, lines } = useMemo((): { currentLineIndex: number; lines: LineGroup[] } => {
     if (!analysis?.lyricsWords) return { currentLineIndex: -1, lines: [] };
-    
+
     const words = analysis.lyricsWords;
     const segments = analysis.lyricsSegments;
-    
-    const lineGroups: LineGroup[] = segments?.length 
+
+    const lineGroups: LineGroup[] = segments?.length
       ? segments.map(seg => ({
-          words: words.filter(w => w.start >= seg.start && w.end <= seg.end),
-          start: seg.start,
-          end: seg.end,
-          text: seg.text,
-        }))
+        words: words.filter(w => w.start >= seg.start && w.end <= seg.end),
+        start: seg.start,
+        end: seg.end,
+        text: seg.text,
+      }))
       : [{ words, start: 0, end: duration, text: words.map(w => w.word).join(' ') }];
-    
+
     // Find current line with small buffer
     const currentIdx = lineGroups.findIndex(
       line => currentTime >= line.start - 0.1 && currentTime <= line.end + 0.3
     );
-    
+
     return { currentLineIndex: currentIdx, lines: lineGroups };
   }, [analysis, currentTime, duration]);
 
   // Auto-scroll is now handled by each LyricLine component
-  
+
   // Handle countdown display
   useEffect(() => {
     if (isInitialLoad && analysis?.lyricsWords?.[0]) {
       setIsInitialLoad(false);
     }
   }, [analysis, isInitialLoad]);
-  
+
   // Calculate time until first lyric
   const timeUntilFirstLyric = useMemo(() => {
     if (!analysis?.lyricsWords?.[0] || !isPlaying) return -1;
@@ -1189,11 +1189,40 @@ export function KaraokePage() {
   // Render states
   if (!analysis) {
     return (
-      <div style={{ minHeight: '100vh', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', color: 'white' }}>
-          <Music style={{ width: 64, height: 64, margin: '0 auto 16px', color: COLORS.purple, animation: 'pulse 2s infinite' }} />
-          <h1 style={{ fontSize: '1.5rem', marginBottom: 8 }}>Loading Karaoke...</h1>
-          <p style={{ color: COLORS.gray }}>Waiting for song data</p>
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a1a2e 0%, #2e1065 50%, #1a1a2e 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center', color: 'white', maxWidth: 420, padding: 32 }}>
+          <div style={{ position: 'relative', display: 'inline-block', marginBottom: 28 }}>
+            <Music style={{ width: 72, height: 72, color: COLORS.purple, animation: 'pulse 2s infinite' }} />
+            <Sparkles style={{
+              width: 24, height: 24,
+              color: '#fbbf24',
+              position: 'absolute', top: -4, right: -12,
+              animation: 'bounce 1.6s ease-in-out infinite',
+            }} />
+          </div>
+          <h1 style={{ fontSize: '1.65rem', fontWeight: 700, marginBottom: 10, letterSpacing: '-0.02em' }}>No Song Loaded</h1>
+          <p style={{ color: 'rgba(203,213,225,0.7)', lineHeight: 1.7, marginBottom: 28, fontSize: '0.95rem' }}>
+            Karaoke mode needs a song with word-level lyrics. Analyze a track in Studio first, then open it here for a real-time sing-along experience.
+          </p>
+          <a
+            href="/studio"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 10,
+              padding: '14px 32px',
+              background: 'linear-gradient(135deg, #a855f7, #6366f1)',
+              color: 'white', border: 'none', borderRadius: 12,
+              fontSize: '1rem', fontWeight: 600,
+              textDecoration: 'none',
+              boxShadow: '0 4px 20px rgba(168,85,247,0.4)',
+              transition: 'transform 0.15s, box-shadow 0.15s',
+            }}
+          >
+            <Music style={{ width: 18, height: 18 }} />
+            Go to Studio
+          </a>
+          <p style={{ color: 'rgba(148,163,184,0.5)', fontSize: '0.78rem', marginTop: 20 }}>
+            Or paste lyrics into the <a href="/" style={{ color: '#67e8f9', textDecoration: 'underline' }}>Creative Engine</a>
+          </p>
         </div>
       </div>
     );
@@ -1228,7 +1257,7 @@ export function KaraokePage() {
     <div ref={containerRef} style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: themeStyle.background, color: themeStyle.color, position: 'relative', overflow: 'hidden' }}>
       {/* Background Visualizer */}
       <BackgroundVisualizer theme={theme} isPlaying={isPlaying} />
-      
+
       {/* Hidden audio */}
       {hasAudio && <audio ref={audioRef} src={analysis.audioUrl} preload="auto" />}
 
@@ -1239,12 +1268,12 @@ export function KaraokePage() {
 
       {/* Sync notice */}
       {!hasAudio && (
-        <div style={{ 
-          background: 'rgba(59, 130, 246, 0.15)', 
-          borderBottom: '1px solid rgba(59, 130, 246, 0.2)', 
-          padding: '12px 16px', 
-          textAlign: 'center', 
-          color: COLORS.blue, 
+        <div style={{
+          background: 'rgba(59, 130, 246, 0.15)',
+          borderBottom: '1px solid rgba(59, 130, 246, 0.2)',
+          padding: '12px 16px',
+          textAlign: 'center',
+          color: COLORS.blue,
           fontSize: '0.875rem',
           backdropFilter: 'blur(8px)',
           display: 'flex',
@@ -1258,12 +1287,12 @@ export function KaraokePage() {
       )}
 
       {/* Header */}
-      <header style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        padding: '14px 24px', 
-        background: 'rgba(0,0,0,0.35)', 
+      <header style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '14px 24px',
+        background: 'rgba(0,0,0,0.35)',
         backdropFilter: 'blur(16px)',
         borderBottom: '1px solid rgba(255,255,255,0.05)',
       }}>
@@ -1281,26 +1310,26 @@ export function KaraokePage() {
               <Mic2 style={{ width: 24, height: 24, color: themeStyle.accent }} />
             </div>
             {isPlaying && (
-              <span style={{ 
-                position: 'absolute', 
-                top: -2, 
-                right: -2, 
-                width: 12, 
-                height: 12, 
-                background: COLORS.green, 
-                borderRadius: '50%', 
+              <span style={{
+                position: 'absolute',
+                top: -2,
+                right: -2,
+                width: 12,
+                height: 12,
+                background: COLORS.green,
+                borderRadius: '50%',
                 animation: 'pulse 1s infinite',
                 border: '2px solid rgba(0,0,0,0.5)',
               }} />
             )}
           </div>
           <div>
-            <h1 style={{ 
-              fontWeight: 600, 
-              fontSize: '1.15rem', 
-              maxWidth: 400, 
-              overflow: 'hidden', 
-              textOverflow: 'ellipsis', 
+            <h1 style={{
+              fontWeight: 600,
+              fontSize: '1.15rem',
+              maxWidth: 400,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
               letterSpacing: '-0.01em',
             }}>
@@ -1318,10 +1347,10 @@ export function KaraokePage() {
                 <>
                   <span>•</span>
                   <span style={{ color: isPlaying ? COLORS.green : COLORS.gray, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ 
-                      width: 6, 
-                      height: 6, 
-                      borderRadius: '50%', 
+                    <span style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
                       background: isPlaying ? COLORS.green : COLORS.gray,
                       animation: isPlaying ? 'pulse 1s infinite' : 'none',
                     }} />
@@ -1332,7 +1361,7 @@ export function KaraokePage() {
             </p>
           </div>
         </div>
-        
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {[
             { icon: Pencil, onClick: () => setShowLyricEditor(!showLyricEditor), title: 'Edit Lyrics' },
@@ -1364,14 +1393,14 @@ export function KaraokePage() {
       )}
 
       {/* Lyrics */}
-      <main 
-        ref={lyricsRef} 
-        style={{ 
-          flex: 1, 
-          overflowY: 'auto', 
-          padding: '80px 60px', 
-          display: 'flex', 
-          flexDirection: 'column', 
+      <main
+        ref={lyricsRef}
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '80px 60px',
+          display: 'flex',
+          flexDirection: 'column',
           gap: 36,
           scrollBehavior: 'smooth',
           maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
@@ -1380,7 +1409,7 @@ export function KaraokePage() {
       >
         {/* Initial spacer for better scroll centering */}
         <div style={{ height: '30vh', flexShrink: 0 }} />
-        
+
         {lines.map((line, idx) => (
           <LyricLine
             key={idx}
@@ -1395,7 +1424,7 @@ export function KaraokePage() {
             totalLines={lines.length}
           />
         ))}
-        
+
         {/* End spacer */}
         <div style={{ height: '50vh', flexShrink: 0 }} />
       </main>

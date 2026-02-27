@@ -1,11 +1,14 @@
 import { createBrowserRouter, RouterProvider, Outlet } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { NavBar } from '@/components/NavBar';
 
 // Lazy load pages for code splitting
 const HomePage = lazy(() => import('@/pages/HomePage'));
+const TooldropPage = lazy(() => import('@/pages/TooldropPage'));
 const SchedulerPage = lazy(() => import('@/pages/SchedulerPage'));
 const KaraokePage = lazy(() => import('@/pages/KaraokePage'));
+const OriginalSongAnalyzerPage = lazy(() => import('@/App'));
 
 // Loading fallback
 function PageLoader() {
@@ -23,6 +26,7 @@ function PageLoader() {
 function RootLayout() {
   return (
     <ErrorBoundary>
+      <NavBar />
       <Suspense fallback={<PageLoader />}>
         <Outlet />
       </Suspense>
@@ -38,6 +42,10 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
+        element: <TooldropPage />,
+      },
+      {
+        path: 'studio',
         element: <HomePage />,
       },
       {
@@ -52,6 +60,14 @@ const router = createBrowserRouter([
         path: 'karaoke',
         element: <KaraokePage />,
       },
+      ...(import.meta.env.DEV
+        ? [
+          {
+            path: 'original',
+            element: <OriginalSongAnalyzerPage />,
+          },
+        ]
+        : []),
     ],
   },
 ]);

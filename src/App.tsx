@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AudioAnalyzer } from './components/AudioAnalyzer';
 import { AnalysisResults } from './components/AnalysisResults';
 import { CollectionDashboard } from './components/CollectionDashboard';
@@ -377,6 +378,11 @@ export default function App() {
           <p className="text-purple-200">
             Upload MP3 or WAV files for comprehensive audio analysis and lyrics transcription
           </p>
+          {import.meta.env.DEV && (
+            <p className="text-purple-300 text-sm mt-2">
+              Need provider/database setup? Open Studio Setup.
+            </p>
+          )}
           
           {/* Load History Button */}
           <div className="mt-4 flex gap-3 justify-center">
@@ -397,6 +403,16 @@ export default function App() {
               <Database className="w-5 h-5" />
               {isRunningMaintenance ? 'Running...' : 'Database Maintenance'}
             </button>
+
+            {import.meta.env.DEV && (
+              <Link
+                to="/studio"
+                className="px-6 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors flex items-center gap-2"
+              >
+                <Settings className="w-5 h-5" />
+                Studio Setup
+              </Link>
+            )}
           </div>
         </div>
 

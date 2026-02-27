@@ -44,3 +44,4 @@ supabase/.temp
 
 # TypeScript cache
 *.tsbuildinfo
+.vercel

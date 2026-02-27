@@ -9,9 +9,9 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAnalysisStore } from '@/store/analysisStore';
 import { useSupabaseAPI } from '@/hooks/useSupabaseAPI';
-import { 
+import {
   APP_NAME,
-  MAX_FILE_SIZE_BYTES, 
+  MAX_FILE_SIZE_BYTES,
   SUPPORTED_AUDIO_TYPES,
   UPLOAD_PROGRESS_STEPS,
   UPLOAD_PROGRESS_DELAY_MS,
@@ -26,14 +26,14 @@ import {
 } from '@/config/api';
 import { logger } from '@/utils/logger';
 import type { SongAnalysis } from '@/types';
-import { 
-  Upload, 
-  Music, 
-  FolderOpen, 
-  History, 
-  Save, 
-  Search, 
-  BarChart3, 
+import {
+  Upload,
+  Music,
+  FolderOpen,
+  History,
+  Save,
+  Search,
+  BarChart3,
   Database,
   Calendar,
   Trash2,
@@ -177,7 +177,7 @@ export function HomePage() {
     setLyricsAiProvider(resetConfig.lyricsAiProvider);
     setSettingsMessage('Reset to default runtime settings.');
   };
-  
+
   // Drag and drop state
   const [isDragging, setIsDragging] = useState(false);
   const dropZoneRef = useRef<HTMLLabelElement>(null);
@@ -203,13 +203,13 @@ export function HomePage() {
         console.log(`Skipping macOS system file: ${fileName}`);
         return false;
       }
-      
+
       // Check if it's actually an audio file
-      const isAudio = file.type.startsWith('audio/') || 
-                     SUPPORTED_AUDIO_TYPES.some(ext => fileName.toLowerCase().endsWith(ext));
+      const isAudio = file.type.startsWith('audio/') ||
+        SUPPORTED_AUDIO_TYPES.some(ext => fileName.toLowerCase().endsWith(ext));
       return isAudio;
     });
-    
+
     if (selectedFiles.length === 0) {
       alert('Please select valid MP3 or WAV files');
       return;
@@ -223,7 +223,7 @@ export function HomePage() {
 
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i];
-      
+
       await new Promise<void>(resolve => {
         const increment = 100 / totalFiles;
         let currentStep = 0;
@@ -318,7 +318,7 @@ export function HomePage() {
 
     // Check if any analyses have audio that can be uploaded
     const analysesWithAudio = analyses.filter(a => a.audioUrl?.startsWith('blob:') && !a.storedAudioUrl);
-    
+
     let uploadAudioFiles = false;
     if (analysesWithAudio.length > 0) {
       uploadAudioFiles = confirm(
@@ -359,7 +359,7 @@ export function HomePage() {
 
   const confirmDelete = async () => {
     if (!deleteConfirm.id) return;
-    
+
     const success = await deleteAnalysis(deleteConfirm.id);
     if (success) {
       removeAnalysis(deleteConfirm.id);
@@ -449,7 +449,7 @@ export function HomePage() {
           <p className="text-purple-200">
             365 Days of Light and Dark by th3scr1b3 - Tool Drop - Multi Level Song Analyser
           </p>
-          
+
           {/* Action Buttons */}
           <div className="mt-4 flex gap-3 justify-center flex-wrap">
             <button
@@ -461,7 +461,7 @@ export function HomePage() {
               <History className="w-5 h-5" aria-hidden="true" />
               {isLoadingHistory ? 'Loading...' : 'Load Saved Analyses'}
             </button>
-            
+
             <button
               onClick={handleRunMaintenance}
               disabled={isRunningMaintenance}
@@ -499,6 +499,16 @@ export function HomePage() {
               <Calendar className="w-5 h-5" aria-hidden="true" />
               365 Days Scheduler
             </Link>
+
+            {import.meta.env.DEV && (
+              <Link
+                to="/original"
+                className="px-6 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors flex items-center gap-2"
+              >
+                <Music className="w-5 h-5" aria-hidden="true" />
+                Original Analyzer
+              </Link>
+            )}
 
             <button
               onClick={() => setShowDeploymentSettings((prev) => !prev)}
@@ -614,9 +624,8 @@ export function HomePage() {
             <label
               ref={dropZoneRef}
               htmlFor="file-upload"
-              className={`cursor-pointer flex flex-col items-center justify-center w-full p-12 border-2 border-dashed rounded-xl transition-colors bg-white/5 ${
-                isUploading ? 'pointer-events-none opacity-50' : ''
-              } ${isDragging ? 'border-purple-400 bg-purple-500/10' : 'border-purple-300 hover:border-purple-400'}`}
+              className={`cursor-pointer flex flex-col items-center justify-center w-full p-12 border-2 border-dashed rounded-xl transition-colors bg-white/5 ${isUploading ? 'pointer-events-none opacity-50' : ''
+                } ${isDragging ? 'border-purple-400 bg-purple-500/10' : 'border-purple-300 hover:border-purple-400'}`}
               onDragEnter={handleDragEnter}
               onDragLeave={handleDragLeave}
               onDragOver={handleDragOver}
@@ -648,9 +657,8 @@ export function HomePage() {
             <div className="mt-4 w-full">
               <label
                 htmlFor="folder-upload"
-                className={`cursor-pointer flex items-center justify-center w-full p-4 border-2 border-dashed border-blue-300 rounded-xl hover:border-blue-400 transition-colors bg-blue-500/5 ${
-                  isUploading ? 'pointer-events-none opacity-50' : ''
-                }`}
+                className={`cursor-pointer flex items-center justify-center w-full p-4 border-2 border-dashed border-blue-300 rounded-xl hover:border-blue-400 transition-colors bg-blue-500/5 ${isUploading ? 'pointer-events-none opacity-50' : ''
+                  }`}
               >
                 <FolderOpen className="w-6 h-6 text-blue-300 mr-2" aria-hidden="true" />
                 <span className="text-blue-100">
@@ -832,11 +840,10 @@ export function HomePage() {
             <div className="flex gap-2 mb-6 border-b border-white/10" role="tablist">
               <button
                 onClick={() => setActiveTab('results')}
-                className={`px-6 py-3 transition-colors ${
-                  activeTab === 'results'
+                className={`px-6 py-3 transition-colors ${activeTab === 'results'
                     ? 'text-white border-b-2 border-purple-400'
                     : 'text-purple-300 hover:text-white'
-                }`}
+                  }`}
                 role="tab"
                 aria-selected={activeTab === 'results'}
               >
@@ -847,11 +854,10 @@ export function HomePage() {
               </button>
               <button
                 onClick={() => setActiveTab('collection')}
-                className={`px-6 py-3 transition-colors ${
-                  activeTab === 'collection'
+                className={`px-6 py-3 transition-colors ${activeTab === 'collection'
                     ? 'text-white border-b-2 border-purple-400'
                     : 'text-purple-300 hover:text-white'
-                }`}
+                  }`}
                 role="tab"
                 aria-selected={activeTab === 'collection'}
               >
@@ -865,8 +871,8 @@ export function HomePage() {
             {/* Tab Content */}
             <ErrorBoundary>
               {activeTab === 'results' && (
-                <AnalysisResults 
-                  analyses={filteredAnalyses} 
+                <AnalysisResults
+                  analyses={filteredAnalyses}
                   onDelete={handleDeleteAnalysis}
                 />
               )}
@@ -877,20 +883,27 @@ export function HomePage() {
           </div>
         )}
 
-        {/* Info Note */}
+        {/* Info Note — Glass Feature Cards */}
         {!isAnalyzing && analyses.length === 0 && files.length === 0 && (
-          <div className="bg-blue-500/10 border border-blue-400/30 rounded-xl p-6 text-blue-100">
-            <h3 className="mb-2">How it works:</h3>
-            <ul className="space-y-2 text-sm">
-              <li>• Upload one or multiple MP3/WAV files</li>
-              <li>• Audio analysis uses Web Audio API for real-time feature extraction</li>
-              <li>• Analysis includes tempo, key, energy, mood, and more</li>
-              <li>• Lyrics transcription uses your local Whisper service</li>
-              <li>• Switch lyrics AI provider in Deployment Settings (Local/OpenAI/Claude/Grok)</li>
-              <li>• Switch between OG database and your own database mode</li>
-              <li>• All results can be saved or downloaded as JSON</li>
-              <li>• Use the 365 Days Scheduler to plan your music releases</li>
-            </ul>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              { icon: <Upload className="w-6 h-6" />, title: 'Upload Audio', desc: 'Drop one or multiple MP3/WAV files — batch scanning supported.' },
+              { icon: <Zap className="w-6 h-6" />, title: 'Real-Time Analysis', desc: 'Web Audio API extracts tempo, key, energy, mood, and more.' },
+              { icon: <Music className="w-6 h-6" />, title: 'Lyrics Transcription', desc: 'Local Whisper or switch to OpenAI, Claude, or Grok providers.' },
+              { icon: <Database className="w-6 h-6" />, title: 'Save & Export', desc: 'Save to OG or custom database. Download results as JSON anytime.' },
+            ].map((card, i) => (
+              <div
+                key={card.title}
+                className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-xl p-5 flex gap-4 items-start"
+                style={{ animation: `fadeSlideUp 0.4s ease-out ${i * 0.08}s both` }}
+              >
+                <div className="text-purple-300 shrink-0 mt-0.5">{card.icon}</div>
+                <div>
+                  <h4 className="text-white mb-1">{card.title}</h4>
+                  <p className="text-purple-200 text-sm" style={{ lineHeight: 1.5 }}>{card.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

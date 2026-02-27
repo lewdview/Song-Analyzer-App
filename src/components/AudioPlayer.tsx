@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { recordUniversalPlayEvent } from '@/services/playEvents';
 
 interface AudioPlayerProps {
   src: string;
@@ -11,6 +12,7 @@ interface AudioPlayerProps {
 export function AudioPlayer({ src, songId, autoPlay = false, onTimeUpdate, onReady }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
+  const lastLoggedRef = useRef<{ releaseId: string; at: number } | null>(null);
   const [duration, setDuration] = useState(0);
   const [current, setCurrent] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -58,6 +60,25 @@ export function AudioPlayer({ src, songId, autoPlay = false, onTimeUpdate, onRea
     const onPlay = () => {
       setPlaying(true);
       broadcastTimeUpdate(el.currentTime || 0, true);
+
+      const normalizedSongId = songId?.trim();
+      if (!normalizedSongId) return;
+      if (el.currentTime > 3) return;
+
+      const releaseId = `tooldrip:${normalizedSongId}`;
+      const now = Date.now();
+      const last = lastLoggedRef.current;
+      if (last && last.releaseId === releaseId && now - last.at < 60_000) return;
+
+      lastLoggedRef.current = { releaseId, at: now };
+      void recordUniversalPlayEvent({
+        releaseId,
+        source: 'song_analyzer_player',
+        platform: 'tooldrip_web',
+        positionSeconds: Math.floor(el.currentTime || 0),
+      }).catch((error) => {
+        console.warn('[PlayEvents] Failed to log Song Analyzer play event:', error);
+      });
     };
     const onPause = () => {
       setPlaying(false);
