@@ -1021,9 +1021,40 @@ export function KaraokePage() {
     const handlers = {
       timeupdate: () => setCurrentTime(audio.currentTime),
       loadedmetadata: () => setDuration(audio.duration),
-      play: () => setIsPlaying(true),
-      pause: () => setIsPlaying(false),
-      ended: () => { setIsPlaying(false); setCurrentTime(0); },
+      play: () => {
+        setIsPlaying(true);
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: analysis?.fileName || 'Karaoke Track',
+            artist: 'ToolDrop App',
+            album: 'Karaoke Playback'
+          });
+          navigator.mediaSession.playbackState = 'playing';
+
+          navigator.mediaSession.setActionHandler('play', () => audio.play());
+          navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+          navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+            audio.currentTime = Math.max(audio.currentTime - (details.seekOffset || 10), 0);
+          });
+          navigator.mediaSession.setActionHandler('seekforward', (details) => {
+            audio.currentTime = Math.min(audio.currentTime + (details.seekOffset || 10), audio.duration);
+          });
+          navigator.mediaSession.setActionHandler('seekto', (details) => {
+            if (details.seekTime !== undefined && details.seekTime !== null) {
+              audio.currentTime = details.seekTime;
+            }
+          });
+        }
+      },
+      pause: () => {
+        setIsPlaying(false);
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+      },
+      ended: () => {
+        setIsPlaying(false);
+        setCurrentTime(0);
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
+      },
     };
 
     Object.entries(handlers).forEach(([event, handler]) =>
@@ -1034,6 +1065,13 @@ export function KaraokePage() {
       Object.entries(handlers).forEach(([event, handler]) =>
         audio.removeEventListener(event, handler)
       );
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('seekbackward', null);
+        navigator.mediaSession.setActionHandler('seekforward', null);
+        navigator.mediaSession.setActionHandler('seekto', null);
+      }
     };
   }, [analysis]);
 

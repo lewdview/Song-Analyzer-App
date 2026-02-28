@@ -20,13 +20,13 @@ export function AudioPlayer({ src, songId, autoPlay = false, onTimeUpdate, onRea
   // Set up BroadcastChannel for karaoke sync
   useEffect(() => {
     if (!songId) return;
-    
+
     try {
       channelRef.current = new BroadcastChannel('karaoke-sync');
     } catch (err) {
       // BroadcastChannel not supported
     }
-    
+
     return () => {
       channelRef.current?.close();
     };
@@ -61,6 +61,29 @@ export function AudioPlayer({ src, songId, autoPlay = false, onTimeUpdate, onRea
       setPlaying(true);
       broadcastTimeUpdate(el.currentTime || 0, true);
 
+      // Support mobile background playback
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: songId ? `Track ${songId}` : 'Song Analyzer',
+          artist: 'ToolDrop App',
+          album: 'Analysis Playback'
+        });
+
+        navigator.mediaSession.setActionHandler('play', () => { el.play(); });
+        navigator.mediaSession.setActionHandler('pause', () => { el.pause(); });
+        navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+          el.currentTime = Math.max(el.currentTime - (details.seekOffset || 10), 0);
+        });
+        navigator.mediaSession.setActionHandler('seekforward', (details) => {
+          el.currentTime = Math.min(el.currentTime + (details.seekOffset || 10), el.duration);
+        });
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+          if (details.seekTime !== undefined && details.seekTime !== null) {
+            el.currentTime = details.seekTime;
+          }
+        });
+      }
+
       const normalizedSongId = songId?.trim();
       if (!normalizedSongId) return;
       if (el.currentTime > 3) return;
@@ -83,6 +106,10 @@ export function AudioPlayer({ src, songId, autoPlay = false, onTimeUpdate, onRea
     const onPause = () => {
       setPlaying(false);
       broadcastTimeUpdate(el.currentTime || 0, false);
+
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'paused';
+      }
     };
 
     el.addEventListener('loadedmetadata', onLoaded);
@@ -95,6 +122,13 @@ export function AudioPlayer({ src, songId, autoPlay = false, onTimeUpdate, onRea
       el.removeEventListener('timeupdate', onTime);
       el.removeEventListener('play', onPlay);
       el.removeEventListener('pause', onPause);
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('seekbackward', null);
+        navigator.mediaSession.setActionHandler('seekforward', null);
+        navigator.mediaSession.setActionHandler('seekto', null);
+      }
     };
   }, [onTimeUpdate, songId]);
 
