@@ -1,11 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Lock, LogOut, Sparkles } from 'lucide-react';
+import { LogOut, Sparkles } from 'lucide-react';
 import { analyzeCreativeLyrics, type CreativeEngineResult, type HeatmapPoint } from '@/services/creativeEngine';
 import { fetchOwnSharedProfile, sharedSupabase, type SharedProfile } from '@/services/sharedSupabase';
+import {
+  addLocalCreativeHistory,
+  createCreativeHistoryEntry,
+  deleteCreativeHistoryFromCloud,
+  loadCreativeHistoryFromCloud,
+  markLocalEntriesSynced,
+  mergeCreativeHistory,
+  readLocalCreativeHistory,
+  removeLocalCreativeHistory,
+  saveCreativeHistoryToCloud,
+  type CreativeHistoryEntry,
+} from '@/services/creativeHistory';
 import './tooldrop.css';
-
-type GateState = 'loading' | 'needs_auth' | 'forbidden' | 'ready' | 'error';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -48,95 +57,114 @@ function heatmapBackground(point: HeatmapPoint): string {
   return `hsla(${Math.round(hue)}, ${Math.round(saturation)}%, ${Math.round(lightness)}%, ${Math.min(alpha, 0.95).toFixed(2)})`;
 }
 
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
 export function TooldropPage() {
-  const isDevMode = (import.meta as any).env.DEV;
-  const [gateState, setGateState] = useState<GateState>('loading');
-  const [gateMessage, setGateMessage] = useState('');
+  const [authReady, setAuthReady] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [accountMessage, setAccountMessage] = useState('');
   const [profile, setProfile] = useState<SharedProfile | null>(null);
+  const [signedInUserId, setSignedInUserId] = useState<string | null>(null);
+  const [signedInEmail, setSignedInEmail] = useState('');
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [artistName, setArtistName] = useState('');
   const [lyricsInput, setLyricsInput] = useState('');
   const [applyArtistName, setApplyArtistName] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isCloudSaving, setIsCloudSaving] = useState(false);
+  const [isSyncingHistory, setIsSyncingHistory] = useState(false);
   const [analysis, setAnalysis] = useState<CreativeEngineResult | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<CreativeHistoryEntry[]>(() =>
+    readLocalCreativeHistory()
+  );
   const [magicEmail, setMagicEmail] = useState('');
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const isSignedIn = Boolean(signedInUserId && accessToken);
 
   useEffect(() => {
     let active = true;
 
-    const hydrateAccess = async () => {
-      setGateState('loading');
-      setGateMessage('');
+    const hydrateProfile = async (userId: string, userMetadata: Record<string, unknown>) => {
+      try {
+        const ownProfile = await fetchOwnSharedProfile(userId);
+        if (!active) return;
+        setProfile(ownProfile);
 
+        const metadataName =
+          typeof userMetadata.full_name === 'string'
+            ? userMetadata.full_name
+            : typeof userMetadata.name === 'string'
+              ? userMetadata.name
+              : '';
+
+        const preferredName = ownProfile?.display_name?.trim() || metadataName.trim();
+        if (preferredName) {
+          setArtistName((prev) => (prev.trim().length > 0 ? prev : preferredName));
+        }
+      } catch (error) {
+        if (!active) return;
+        setProfile(null);
+        setAccountMessage(error instanceof Error ? error.message : 'Could not load profile.');
+      }
+    };
+
+    const applySession = async (session: any | null) => {
+      const user = session?.user;
+      const userId = typeof user?.id === 'string' ? user.id : null;
+      const email = typeof user?.email === 'string' ? user.email : '';
+      const token = typeof session?.access_token === 'string' ? session.access_token : null;
+      const metadata =
+        user && typeof user.user_metadata === 'object' && user.user_metadata
+          ? (user.user_metadata as Record<string, unknown>)
+          : {};
+
+      setSignedInUserId(userId);
+      setSignedInEmail(email);
+      setAccessToken(token);
+      setProfile(null);
+
+      if (!userId) return;
+      await hydrateProfile(userId, metadata);
+    };
+
+    const hydrateSession = async () => {
+      setAuthReady(false);
       try {
         const {
           data: { session },
           error,
         } = await sharedSupabase.auth.getSession();
 
-        if (error) {
-          if (!active) return;
-          setGateState('error');
-          setGateMessage(error.message);
-          return;
-        }
-
-        const user = session?.user;
-        if (!user) {
-          if (!active) return;
-          setProfile(null);
-          setGateState('needs_auth');
-          return;
-        }
-
-        let ownProfile = await fetchOwnSharedProfile(user.id);
-        if (!ownProfile) {
-          const fallbackName =
-            typeof user.user_metadata?.full_name === 'string'
-              ? user.user_metadata.full_name
-              : typeof user.user_metadata?.name === 'string'
-                ? user.user_metadata.name
-                : null;
-
-          const { error: upsertError } = await sharedSupabase
-            .from('profiles')
-            .upsert({ id: user.id, display_name: fallbackName, lab_access: false });
-
-          if (upsertError) {
-            if (!active) return;
-            setGateState('error');
-            setGateMessage(upsertError.message);
-            return;
-          }
-
-          ownProfile = await fetchOwnSharedProfile(user.id);
-        }
-
         if (!active) return;
-        setProfile(ownProfile);
-        const nameFromProfile = ownProfile?.display_name?.trim();
-        if (nameFromProfile) {
-          setArtistName((prev) => (prev.trim().length > 0 ? prev : nameFromProfile));
-        }
 
-        if (!ownProfile?.lab_access) {
-          setGateState('forbidden');
-          setGateMessage('Lab access is disabled for this account.');
+        if (error) {
+          setAccountMessage(`Session check failed: ${error.message}`);
+          await applySession(null);
+          setAuthReady(true);
           return;
         }
 
-        setGateState('ready');
+        await applySession(session);
       } catch (error) {
         if (!active) return;
-        setGateState('error');
-        setGateMessage(error instanceof Error ? error.message : 'Access check failed');
+        setAccountMessage(error instanceof Error ? error.message : 'Session check failed.');
+        await applySession(null);
+      } finally {
+        if (active) {
+          setAuthReady(true);
+        }
       }
     };
 
-    void hydrateAccess();
+    void hydrateSession();
 
-    const { data: listener } = sharedSupabase.auth.onAuthStateChange(() => {
-      void hydrateAccess();
+    const { data: listener } = sharedSupabase.auth.onAuthStateChange((_event, session) => {
+      void applySession(session as any);
+      setAuthReady(true);
     });
 
     return () => {
@@ -151,11 +179,64 @@ export function TooldropPage() {
     return cleaned.length > 0 ? cleaned : 'Your Artist Name';
   }, [applyArtistName, artistName]);
 
+  const accountLabel = useMemo(() => {
+    const profileName = profile?.display_name?.trim();
+    if (profileName) return profileName;
+    if (signedInEmail.trim().length > 0) return signedInEmail.trim();
+    return 'Signed In';
+  }, [profile, signedInEmail]);
+
   const sentimentPercent = analysis ? Math.round(analysis.sentimentScore * 100) : 0;
+  const historyModeLabel = isSignedIn
+    ? 'Saved to your account and backed up locally'
+    : 'Temporary local history on this device';
+
+  useEffect(() => {
+    setHistoryEntries(readLocalCreativeHistory());
+  }, []);
+
+  useEffect(() => {
+    if (!isSignedIn || !accessToken) return;
+    let active = true;
+
+    const syncHistory = async () => {
+      setIsSyncingHistory(true);
+
+      try {
+        const localHistory = readLocalCreativeHistory();
+        const unsynced = localHistory.filter((entry) => !entry.syncedToCloud);
+
+        if (unsynced.length > 0) {
+          const syncSuccess = await saveCreativeHistoryToCloud(accessToken, unsynced);
+          if (syncSuccess) {
+            markLocalEntriesSynced(unsynced.map((entry) => entry.id));
+            setAccountMessage(`Synced ${unsynced.length} temporary entr${unsynced.length === 1 ? 'y' : 'ies'} to your account.`);
+          } else {
+            setAccountMessage('Signed in, but cloud sync failed. Local history is still available.');
+          }
+        }
+
+        const cloudHistory = await loadCreativeHistoryFromCloud(accessToken);
+        const merged = mergeCreativeHistory(readLocalCreativeHistory(), cloudHistory);
+        if (!active) return;
+        setHistoryEntries(merged);
+      } finally {
+        if (active) {
+          setIsSyncingHistory(false);
+        }
+      }
+    };
+
+    void syncHistory();
+
+    return () => {
+      active = false;
+    };
+  }, [isSignedIn, accessToken, signedInUserId]);
 
   const handleMagicLinkSignIn = async () => {
     if (!magicEmail.trim()) {
-      setGateMessage('Enter an email for magic link sign in.');
+      setAccountMessage('Enter an email for magic link sign in.');
       return;
     }
 
@@ -169,11 +250,11 @@ export function TooldropPage() {
     setIsSigningIn(false);
 
     if (error) {
-      setGateMessage(error.message);
+      setAccountMessage(error.message);
       return;
     }
 
-    setGateMessage('Magic link sent. Check your inbox.');
+    setAccountMessage('Magic link sent. Check your inbox.');
     setMagicEmail('');
   };
 
@@ -188,7 +269,7 @@ export function TooldropPage() {
     setIsSigningIn(false);
 
     if (error) {
-      setGateMessage(error.message);
+      setAccountMessage(error.message);
     }
   };
 
@@ -198,7 +279,7 @@ export function TooldropPage() {
     } | undefined;
 
     if (!wallet?.request) {
-      setGateMessage('No Base-compatible wallet detected.');
+      setAccountMessage('No Base-compatible wallet detected.');
       return;
     }
 
@@ -217,52 +298,113 @@ export function TooldropPage() {
     setIsSigningIn(false);
 
     if (error) {
-      setGateMessage(error.message);
+      setAccountMessage(error.message);
     }
   };
 
   const handleSignOut = async () => {
     const { error } = await sharedSupabase.auth.signOut();
     if (error) {
-      setGateMessage(error.message);
+      setAccountMessage(error.message);
+      return;
     }
+    setAccountMessage('Signed out. Your local temporary history is still available.');
   };
 
   const handleAnalyze = async () => {
     const input = lyricsInput.trim();
     if (input.length < 12) {
-      setGateMessage('Paste a few more lines so analysis quality is usable.');
+      setStatusMessage('Paste a few more lines so analysis quality is usable.');
       return;
     }
 
-    setGateMessage('');
+    setStatusMessage('');
     setIsAnalyzing(true);
 
     await new Promise((resolve) => setTimeout(resolve, 320));
 
     const next = analyzeCreativeLyrics(input);
+    const entry = createCreativeHistoryEntry({
+      lyricsInput: input,
+      result: next,
+      artistName: applyArtistName ? artistName : '',
+    });
+
     setAnalysis(next);
+    setHistoryEntries(addLocalCreativeHistory(entry));
     setIsAnalyzing(false);
+
+    if (!isSignedIn || !accessToken) {
+      setStatusMessage('Saved to temporary local history. Sign in to keep it on your account.');
+      return;
+    }
+
+    setIsCloudSaving(true);
+    const saved = await saveCreativeHistoryToCloud(accessToken, [entry]);
+    setIsCloudSaving(false);
+
+    if (!saved) {
+      setStatusMessage('Saved locally, but cloud save failed this time.');
+      return;
+    }
+
+    const synced = markLocalEntriesSynced([entry.id]);
+    setHistoryEntries(synced);
+    setStatusMessage('Saved to your account history.');
   };
 
-  if (gateState === 'loading') {
-    return (
-      <main className="td-page">
-        <div className="td-shell td-shell--narrow td-center-copy">
-          <p>Checking access...</p>
-        </div>
-      </main>
-    );
-  }
+  const handleLoadHistoryEntry = (entry: CreativeHistoryEntry) => {
+    setLyricsInput(entry.lyricsInput);
+    setAnalysis(entry.result);
+    if (entry.artistName) {
+      setArtistName(entry.artistName);
+      setApplyArtistName(true);
+    }
+    setStatusMessage('Loaded saved lyrical analysis.');
+  };
 
-  if (gateState === 'needs_auth') {
-    return (
-      <main className="td-page">
-        <div className="td-shell td-shell--narrow">
-          <section className="td-card">
+  const handleDeleteHistoryEntry = async (entry: CreativeHistoryEntry) => {
+    setHistoryEntries(removeLocalCreativeHistory(entry.id));
+
+    if (isSignedIn && accessToken && entry.syncedToCloud) {
+      await deleteCreativeHistoryFromCloud(accessToken, entry.id);
+    }
+  };
+
+  return (
+    <main className="td-page">
+      <div className="td-shell">
+        <header className="td-header">
+          <div>
+            <p className="td-eyebrow">Tooldrop</p>
             <h1 className="td-title">The Creative Engine</h1>
-            <p className="td-subtitle">Sign in with your shared account to continue.</p>
+          </div>
+          <div className="td-row td-row--wrap td-header-actions">
+            <span className="td-subtitle td-subtitle--compact">
+              {authReady ? (isSignedIn ? accountLabel : 'Using Guest Mode') : 'Checking sign-in...'}
+            </span>
+            {isSignedIn && (
+              <button
+                type="button"
+                onClick={() => {
+                  void handleSignOut();
+                }}
+                className="td-btn td-btn--ghost td-btn--small"
+              >
+                <LogOut size={16} />
+                <span>Sign Out</span>
+              </button>
+            )}
+          </div>
+        </header>
 
+        <section className="td-card td-card--panel">
+          <p className="td-eyebrow">Account Is Optional</p>
+          <p className="td-subtitle">
+            Use the Creative Engine with no sign-in. Sign in only when you want permanent account saves.
+          </p>
+
+          {!isSignedIn && (
             <div className="td-stack">
               <button
                 type="button"
@@ -308,81 +450,15 @@ export function TooldropPage() {
                 </button>
               </div>
             </div>
-            {gateMessage && <p className="td-message td-message--error">{gateMessage}</p>}
-            {isDevMode && (
-              <div className="td-row td-row--wrap">
-                <Link to="/studio" className="td-btn td-btn--ghost td-btn--small">
-                  Studio
-                </Link>
-                <Link to="/original" className="td-btn td-btn--ghost td-btn--small">
-                  Original Analyzer
-                </Link>
-              </div>
-            )}
-          </section>
-        </div>
-      </main>
-    );
-  }
+          )}
 
-  if (gateState === 'forbidden') {
-    return (
-      <main className="td-page">
-        <div className="td-shell td-shell--narrow">
-          <section className="td-card td-card--warning td-center-copy">
-            <Lock size={40} />
-            <h1 className="td-title">Lab Access Required</h1>
-            <p>{gateMessage || 'Your account does not have lab access yet.'}</p>
-            <p className="td-subtitle">Ask admin to set `profiles.lab_access = true` for your account.</p>
-            <div>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleSignOut();
-                }}
-                className="td-btn td-btn--warning"
-              >
-                Sign Out
-              </button>
-            </div>
-          </section>
-        </div>
-      </main>
-    );
-  }
-
-  if (gateState === 'error') {
-    return (
-      <main className="td-page">
-        <div className="td-shell td-shell--narrow td-center-copy">
-          <p className="td-message td-message--error">{gateMessage || 'Failed to load access state.'}</p>
-        </div>
-      </main>
-    );
-  }
-
-  return (
-    <main className="td-page">
-      <div className="td-shell">
-        <header className="td-header">
-          <div>
-            <p className="td-eyebrow">Tooldrop</p>
-            <h1 className="td-title">The Creative Engine</h1>
-          </div>
-          <div className="td-row td-row--wrap td-header-actions">
-            <span className="td-subtitle td-subtitle--compact">{profile?.display_name || 'Signed In'}</span>
-            <button
-              type="button"
-              onClick={() => {
-                void handleSignOut();
-              }}
-              className="td-btn td-btn--ghost td-btn--small"
-            >
-              <LogOut size={16} />
-              <span>Sign Out</span>
-            </button>
-          </div>
-        </header>
+          <p className="td-subtitle td-subtitle--compact" style={{ marginTop: '0.85rem' }}>
+            {historyModeLabel}
+            {isSyncingHistory ? ' · syncing history...' : ''}
+            {isCloudSaving ? ' · saving latest analysis...' : ''}
+          </p>
+          {accountMessage && <p className="td-message td-message--warning">{accountMessage}</p>}
+        </section>
 
         <section className="td-card">
           <p className="td-eyebrow">Paste your lyrics below.</p>
@@ -431,7 +507,66 @@ export function TooldropPage() {
             />
           </div>
 
-          {gateMessage && <p className="td-message td-message--warning">{gateMessage}</p>}
+          {statusMessage && <p className="td-message td-message--success">{statusMessage}</p>}
+        </section>
+
+        <section className="td-card td-card--panel">
+          <div className="td-row td-row--between td-history-header">
+            <div>
+              <h2 className="td-title td-title--small">Past Lyrical Analysis</h2>
+              <p className="td-subtitle">
+                {historyEntries.length} saved entr{historyEntries.length === 1 ? 'y' : 'ies'}.
+              </p>
+            </div>
+          </div>
+
+          {historyEntries.length === 0 ? (
+            <p className="td-subtitle">
+              No history yet. Run an analysis and it will appear here automatically.
+            </p>
+          ) : (
+            <div className="td-history-list">
+              {historyEntries.map((entry) => {
+                const previewText = entry.lyricsInput.replace(/\s+/g, ' ').trim().slice(0, 200);
+                return (
+                  <article key={entry.id} className="td-history-item">
+                    <div className="td-row td-row--between td-row--wrap">
+                      <div>
+                        <p className="td-history-title">{entry.result.posterTitle}</p>
+                        <p className="td-history-meta">
+                          {formatDateTime(entry.createdAt)} · {entry.result.sentimentLabel} · {entry.result.confidence}% confidence
+                        </p>
+                      </div>
+                      <span className={`td-chip ${entry.syncedToCloud ? 'td-chip--saved' : 'td-chip--temp'}`}>
+                        {entry.syncedToCloud ? 'Saved' : 'Temporary'}
+                      </span>
+                    </div>
+
+                    <p className="td-history-snippet">{previewText}</p>
+
+                    <div className="td-row td-row--wrap">
+                      <button
+                        type="button"
+                        className="td-btn td-btn--small td-btn--ghost"
+                        onClick={() => handleLoadHistoryEntry(entry)}
+                      >
+                        Load
+                      </button>
+                      <button
+                        type="button"
+                        className="td-btn td-btn--small td-btn--warning"
+                        onClick={() => {
+                          void handleDeleteHistoryEntry(entry);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         {/* Shimmer loading overlay */}

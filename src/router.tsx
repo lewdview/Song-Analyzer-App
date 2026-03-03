@@ -9,6 +9,8 @@ const TooldropPage = lazy(() => import('@/pages/TooldropPage'));
 const SchedulerPage = lazy(() => import('@/pages/SchedulerPage'));
 const KaraokePage = lazy(() => import('@/pages/KaraokePage'));
 const OriginalSongAnalyzerPage = lazy(() => import('@/App'));
+const SHOW_INTERNAL_TOOLS =
+  (import.meta as any).env.DEV || (import.meta as any).env.VITE_ENABLE_INTERNAL_TOOLS === 'true';
 
 // Loading fallback
 function PageLoader() {
@@ -44,22 +46,26 @@ const router = createBrowserRouter([
         index: true,
         element: <TooldropPage />,
       },
-      {
-        path: 'studio',
-        element: <HomePage />,
-      },
-      {
-        path: 'scheduler',
-        element: <SchedulerPage />,
-      },
-      {
-        path: 'scheduler/:dayNumber',
-        element: <SchedulerPage />,
-      },
-      {
-        path: 'karaoke',
-        element: <KaraokePage />,
-      },
+      ...(SHOW_INTERNAL_TOOLS
+        ? [
+          {
+            path: 'studio',
+            element: <HomePage />,
+          },
+          {
+            path: 'scheduler',
+            element: <SchedulerPage />,
+          },
+          {
+            path: 'scheduler/:dayNumber',
+            element: <SchedulerPage />,
+          },
+          {
+            path: 'karaoke',
+            element: <KaraokePage />,
+          },
+        ]
+        : []),
       ...((import.meta as any).env.DEV
         ? [
           {

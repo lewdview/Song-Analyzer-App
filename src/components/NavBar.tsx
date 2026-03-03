@@ -2,11 +2,18 @@ import { NavLink } from 'react-router-dom';
 import { Flame, Music, Calendar, Mic2 } from 'lucide-react';
 import './navbar.css';
 
+const SHOW_INTERNAL_TOOLS =
+    (import.meta as any).env.DEV || (import.meta as any).env.VITE_ENABLE_INTERNAL_TOOLS === 'true';
+
 const NAV_ITEMS = [
     { to: '/', label: 'Creative Engine', icon: Flame, end: true },
-    { to: '/studio', label: 'Studio', icon: Music, end: false },
-    { to: '/scheduler', label: 'Scheduler', icon: Calendar, end: false },
-    { to: '/karaoke', label: 'Karaoke', icon: Mic2, end: false },
+    ...(SHOW_INTERNAL_TOOLS
+        ? [
+            { to: '/studio', label: 'Studio', icon: Music, end: false },
+            { to: '/scheduler', label: 'Scheduler', icon: Calendar, end: false },
+            { to: '/karaoke', label: 'Karaoke', icon: Mic2, end: false },
+        ]
+        : []),
 ] as const;
 
 export function NavBar() {
