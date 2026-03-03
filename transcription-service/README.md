@@ -72,7 +72,8 @@ Response shape:
     "sentiment": "positive",
     "sentimentScore": 0.25,
     "energyFromLyrics": 0.6,
-    "valenceFromLyrics": 0.55
+    "valenceFromLyrics": 0.55,
+    "depthFromLyrics": 0.61
   },
   "lyricsAnalysisProvider": "local",
   "fileName": "your-audio.mp3",

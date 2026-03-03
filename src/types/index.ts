@@ -28,6 +28,7 @@ export interface LyricsAnalysis {
   sentimentScore: number; // -1 to 1
   energyFromLyrics: number; // 0 to 1
   valenceFromLyrics: number; // 0 to 1
+  depthFromLyrics: number; // 0 to 1
 }
 
 export interface SongAnalysis {
@@ -257,6 +258,7 @@ export interface HashCheckResponse {
 export interface AnalysisResultsProps {
   analyses: SongAnalysis[];
   onDelete?: (id: string) => void;
+  onRename?: (id: string, title: string) => void;
 }
 
 export interface CollectionDashboardProps {

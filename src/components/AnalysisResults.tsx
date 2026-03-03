@@ -19,14 +19,16 @@ import {
   Brain,
   Trash2,
   ExternalLink,
+  Pencil,
 } from 'lucide-react';
 
 interface AnalysisResultsProps {
   analyses: SongAnalysis[];
   onDelete?: (id: string) => void;
+  onRename?: (id: string, title: string) => void;
 }
 
-export function AnalysisResults({ analyses, onDelete }: AnalysisResultsProps) {
+export function AnalysisResults({ analyses, onDelete, onRename }: AnalysisResultsProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
   const [isLoadingKaraoke, setIsLoadingKaraoke] = useState(false);
 
@@ -120,13 +122,32 @@ export function AnalysisResults({ analyses, onDelete }: AnalysisResultsProps) {
                 <Music className="w-6 h-6 text-purple-300" />
               </div>
               <div>
-                <h3 className="text-white">{analysis.fileName}</h3>
+                <h3 className="text-white">{analysis.title?.trim() || analysis.fileName}</h3>
                 <p className="text-purple-300 text-sm">
+                  {analysis.title?.trim() ? `${analysis.fileName} • ` : ''}
                   {formatDuration(analysis.duration)} • {analysis.tempo} BPM • {analysis.key}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {onRename && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const currentTitle = analysis.title?.trim() || analysis.fileName.replace(/\.[^/.]+$/, '');
+                    const nextTitle = window.prompt('Rename analysis title', currentTitle);
+                    if (nextTitle === null) return;
+                    const trimmed = nextTitle.trim();
+                    if (!trimmed || trimmed === currentTitle) return;
+                    onRename(analysis.id, trimmed);
+                  }}
+                  className="p-2 hover:bg-blue-500/20 rounded-lg transition-colors"
+                  title="Rename this analysis"
+                  aria-label="Rename analysis"
+                >
+                  <Pencil className="w-5 h-5 text-blue-300" aria-hidden="true" />
+                </button>
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -408,7 +429,7 @@ export function AnalysisResults({ analyses, onDelete }: AnalysisResultsProps) {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                       <div>
                         <p className="text-purple-300 mb-1">Lyrical Energy</p>
                         <div className="flex items-center gap-2">
@@ -431,6 +452,18 @@ export function AnalysisResults({ analyses, onDelete }: AnalysisResultsProps) {
                             />
                           </div>
                           <span className="text-purple-200">{(analysis.lyricsAnalysis.valenceFromLyrics * 100).toFixed(0)}%</span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-purple-300 mb-1">Lyrical Depth</p>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-white/10 rounded-full h-2">
+                            <div
+                              className="bg-cyan-400 h-full rounded-full transition-all"
+                              style={{ width: `${(analysis.lyricsAnalysis.depthFromLyrics ?? 0.5) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-purple-200">{((analysis.lyricsAnalysis.depthFromLyrics ?? 0.5) * 100).toFixed(0)}%</span>
                         </div>
                       </div>
                     </div>

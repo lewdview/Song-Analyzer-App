@@ -189,6 +189,46 @@ function addUnique(target, values) {
   }
 }
 
+function calculateDepthScore({
+  source,
+  tokens,
+  positiveHits,
+  negativeHits,
+  emotionScores,
+  themeScores,
+}) {
+  const meaningfulTokens = tokens.filter((token) => token && !STOPWORDS.has(token));
+  const meaningfulCount = meaningfulTokens.length;
+  const uniqueMeaningful = new Set(meaningfulTokens).size;
+  const lexicalDiversity = meaningfulCount > 0 ? uniqueMeaningful / meaningfulCount : 0;
+
+  const activeEmotionCount = Object.values(emotionScores).filter((score) => score >= 1).length;
+  const activeThemeCount = Object.values(themeScores).filter((score) => score >= 1).length;
+  const emotionVariety = clamp(activeEmotionCount / 5, 0, 1);
+  const themeVariety = clamp(activeThemeCount / 5, 0, 1);
+
+  const nonEmptyLines = String(source || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const structuralRange = clamp(nonEmptyLines.length / 24, 0, 1);
+
+  const polarityTension =
+    positiveHits > 0 && negativeHits > 0
+      ? clamp(Math.min(positiveHits, negativeHits) / Math.max(positiveHits, negativeHits), 0, 1)
+      : 0;
+
+  const rawDepth =
+    (lexicalDiversity * 0.35) +
+    (emotionVariety * 0.2) +
+    (themeVariety * 0.2) +
+    (structuralRange * 0.15) +
+    (polarityTension * 0.1);
+
+  const confidence = clamp(meaningfulCount / 40, 0.35, 1);
+  return round3(clamp((rawDepth * confidence) + (0.45 * (1 - confidence)), 0, 1));
+}
+
 export function analyzeLyricsLocally(lyrics) {
   const source = String(lyrics || '');
   const tokens = tokenize(source);
@@ -202,7 +242,8 @@ export function analyzeLyricsLocally(lyrics) {
       sentiment: 'neutral',
       sentimentScore: 0,
       energyFromLyrics: 0.5,
-      valenceFromLyrics: 0.5
+      valenceFromLyrics: 0.5,
+      depthFromLyrics: 0.5,
     };
   }
 
@@ -306,6 +347,14 @@ export function analyzeLyricsLocally(lyrics) {
   const energyFromLyrics = round3(
     clamp(0.5 + (energyRaw / Math.max(6, (tokenCount * 0.12))), 0, 1)
   );
+  const depthFromLyrics = calculateDepthScore({
+    source,
+    tokens,
+    positiveHits,
+    negativeHits,
+    emotionScores,
+    themeScores,
+  });
 
   const emotions = topKeys(emotionScores, 1, 5);
   const themes = topKeys(themeScores, 1, 5);
@@ -345,6 +394,7 @@ export function analyzeLyricsLocally(lyrics) {
     sentiment,
     sentimentScore,
     energyFromLyrics,
-    valenceFromLyrics
+    valenceFromLyrics,
+    depthFromLyrics,
   };
 }

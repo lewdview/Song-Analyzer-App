@@ -31,6 +31,7 @@ const OG_SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6bm1wdHVkZ2ljcm1samphZmV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzMDE4ODUsImV4cCI6MjA3OTg3Nzg4NX0.syu1bbr9OJ5LxCnTrybLVgsjac4UOkFVdAHuvhKMY2g';
 const DEFAULT_SERVER_FUNCTION_PATH = 'make-server-473d7342';
 const RUNTIME_CONFIG_STORAGE_KEY = 'tool-drop-runtime-api-config-v1';
+const USER_SCOPE_STORAGE_KEY = 'tool-drop-user-scope-id-v1';
 
 const VALID_DATABASE_MODES = new Set<DatabaseMode>(['og', 'custom']);
 const VALID_LYRICS_PROVIDERS = new Set<LyricsAIProvider>(['local', 'openai', 'claude', 'grok']);
@@ -70,6 +71,24 @@ const getDefaultRuntimeConfig = (): RuntimeApiConfig => ({
 });
 
 const hasWindow = () => typeof window !== 'undefined' && !!window.localStorage;
+
+const ensureUserScopeId = (): string => {
+  if (!hasWindow()) return 'server';
+  const existing = window.localStorage.getItem(USER_SCOPE_STORAGE_KEY);
+  if (existing && existing.trim().length > 0) {
+    return existing.trim();
+  }
+
+  const generated =
+    typeof window.crypto?.randomUUID === 'function'
+      ? `user_${window.crypto.randomUUID()}`
+      : `user_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+
+  window.localStorage.setItem(USER_SCOPE_STORAGE_KEY, generated);
+  return generated;
+};
+
+export const getUserScopeId = (): string => ensureUserScopeId();
 
 const parseStoredConfig = (): Partial<RuntimeApiConfig> => {
   if (!hasWindow()) return {};
@@ -181,6 +200,9 @@ export const API_ENDPOINTS = {
     get save() {
       return `${getEdgeFunctionUrl()}/analyses/save`;
     },
+    get update() {
+      return `${getEdgeFunctionUrl()}/analyses/update`;
+    },
     get load() {
       return `${getEdgeFunctionUrl()}/analyses/load`;
     },
@@ -237,9 +259,11 @@ export const API_ENDPOINTS = {
 // Default request headers
 export const getAuthHeaders = () => {
   const db = getActiveDatabaseConfig();
+  const userScopeId = getUserScopeId();
   return {
     Authorization: `Bearer ${db.anonKey}`,
     apikey: db.anonKey,
+    'x-user-id': userScopeId,
   };
 };
 
@@ -247,4 +271,3 @@ export const getJsonHeaders = () => ({
   ...getAuthHeaders(),
   'Content-Type': 'application/json',
 });
-

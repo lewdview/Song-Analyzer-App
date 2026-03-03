@@ -32,6 +32,7 @@ function normalizeAnalysisShape(raw) {
   const sentimentScore = Number(raw.sentimentScore);
   const energyFromLyrics = Number(raw.energyFromLyrics);
   const valenceFromLyrics = Number(raw.valenceFromLyrics);
+  const depthFromLyrics = Number(raw.depthFromLyrics);
 
   return {
     mood: toStringArray(raw.mood),
@@ -41,6 +42,7 @@ function normalizeAnalysisShape(raw) {
     sentimentScore: Number.isFinite(sentimentScore) ? clamp(sentimentScore, -1, 1) : 0,
     energyFromLyrics: Number.isFinite(energyFromLyrics) ? clamp(energyFromLyrics, 0, 1) : 0.5,
     valenceFromLyrics: Number.isFinite(valenceFromLyrics) ? clamp(valenceFromLyrics, 0, 1) : 0.5,
+    depthFromLyrics: Number.isFinite(depthFromLyrics) ? clamp(depthFromLyrics, 0, 1) : 0.5,
   };
 }
 
@@ -85,7 +87,8 @@ function buildPrompt(lyrics) {
     '  "sentiment": "positive|negative|neutral|mixed",',
     '  "sentimentScore": -1.0 to 1.0,',
     '  "energyFromLyrics": 0.0 to 1.0,',
-    '  "valenceFromLyrics": 0.0 to 1.0',
+    '  "valenceFromLyrics": 0.0 to 1.0,',
+    '  "depthFromLyrics": 0.0 to 1.0',
     '}',
     'Rules:',
     '- Return valid JSON only, no markdown.',
@@ -269,4 +272,3 @@ export async function analyzeLyricsWithProvider(lyrics, provider) {
     };
   }
 }
-

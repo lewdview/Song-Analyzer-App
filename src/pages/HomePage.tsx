@@ -106,6 +106,7 @@ export function HomePage() {
   const {
     saveAnalyses,
     loadAnalyses,
+    updateAnalysis,
     deleteAnalysis,
     runMaintenance,
     deduplicateAnalyses,
@@ -356,12 +357,38 @@ export function HomePage() {
     setDeleteConfirm({ isOpen: true, id });
   };
 
+  const handleRenameAnalysis = async (id: string, nextTitle: string) => {
+    const trimmed = nextTitle.trim();
+    if (!trimmed) return;
+
+    const success = await updateAnalysis(id, { title: trimmed });
+    if (!success) {
+      alert('Failed to rename analysis');
+      return;
+    }
+
+    const updatedLocal = analyses.map((analysis) =>
+      analysis.id === id ? { ...analysis, title: trimmed } : analysis
+    );
+    setAnalyses(updatedLocal);
+
+    const reloaded = await loadAnalyses();
+    if (reloaded.length > 0) {
+      setAnalyses(reloaded);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteConfirm.id) return;
 
+    const expectedRemaining = Math.max(analyses.length - 1, 0);
     const success = await deleteAnalysis(deleteConfirm.id);
     if (success) {
       removeAnalysis(deleteConfirm.id);
+      const reloaded = await loadAnalyses();
+      if (reloaded.length > 0 || expectedRemaining === 0) {
+        setAnalyses(reloaded);
+      }
     }
     setDeleteConfirm({ isOpen: false, id: null });
   };
@@ -458,7 +485,7 @@ export function HomePage() {
               aria-busy={isLoadingHistory}
             >
               <History className="w-5 h-5" aria-hidden="true" />
-              {isLoadingHistory ? 'Loading...' : 'Load Saved Analyses'}
+              {isLoadingHistory ? 'Loading...' : 'Load / Reload Saved Analyses'}
             </button>
 
             <button
@@ -872,6 +899,7 @@ export function HomePage() {
                 <AnalysisResults
                   analyses={filteredAnalyses}
                   onDelete={handleDeleteAnalysis}
+                  onRename={handleRenameAnalysis}
                 />
               )}
               {activeTab === 'collection' && (

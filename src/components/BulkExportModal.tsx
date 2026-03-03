@@ -179,6 +179,7 @@ export function BulkExportModal({ isOpen, onClose, analyses }: BulkExportModalPr
             themes: a.lyricsAnalysis.themes || [],
             energyFromLyrics: a.lyricsAnalysis.energyFromLyrics,
             valenceFromLyrics: a.lyricsAnalysis.valenceFromLyrics,
+            depthFromLyrics: a.lyricsAnalysis.depthFromLyrics ?? 0.5,
           }
         : null,
     }));

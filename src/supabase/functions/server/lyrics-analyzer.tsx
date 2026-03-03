@@ -6,6 +6,7 @@ export interface LyricsAnalysis {
   sentimentScore: number; // -1 to 1
   energyFromLyrics: number; // 0 to 1
   valenceFromLyrics: number; // 0 to 1
+  depthFromLyrics: number; // 0 to 1
 }
 
 export interface SonotellerResponse {
@@ -87,6 +88,7 @@ export async function analyzeLyricsWithAI(lyrics: string, _apiKey: string): Prom
 
     const energyFromLyrics = hasEnergyMood ? 0.7 : 0.4;
     const valenceFromLyrics = hasValenceMood ? 0.7 : 0.4;
+    const depthFromLyrics = Math.min(1, Math.max(0.2, ((themes.length + keywords.length) / 20)));
 
     // Estimate sentiment score
     const sentimentScore = sentiment === 'positive' ? 0.7 : sentiment === 'negative' ? -0.7 : sentiment === 'mixed' ? 0 : 0;
@@ -99,6 +101,7 @@ export async function analyzeLyricsWithAI(lyrics: string, _apiKey: string): Prom
       sentimentScore,
       energyFromLyrics,
       valenceFromLyrics,
+      depthFromLyrics,
     };
   } catch (error) {
     console.error('Error analyzing lyrics with Sonoteller:', error);
@@ -112,6 +115,7 @@ export async function analyzeLyricsWithAI(lyrics: string, _apiKey: string): Prom
       sentimentScore: 0,
       energyFromLyrics: 0.5,
       valenceFromLyrics: 0.5,
+      depthFromLyrics: 0.5,
     };
   }
 }

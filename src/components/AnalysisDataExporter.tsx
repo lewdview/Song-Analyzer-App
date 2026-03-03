@@ -53,6 +53,7 @@ export function AnalysisDataExporter({ analysis }: AnalysisDataExporterProps) {
         themes: analysis.lyricsAnalysis.themes || [],
         energyFromLyrics: analysis.lyricsAnalysis.energyFromLyrics,
         valenceFromLyrics: analysis.lyricsAnalysis.valenceFromLyrics,
+        depthFromLyrics: analysis.lyricsAnalysis.depthFromLyrics ?? 0.5,
       } : null,
       metadata: {
         id: analysis.id,

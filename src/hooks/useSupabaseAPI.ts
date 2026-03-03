@@ -195,6 +195,39 @@ export function useSupabaseAPI() {
     }
   }, []);
 
+  const updateAnalysis = useCallback(async (
+    id: string,
+    updates: Partial<SongAnalysis>
+  ): Promise<boolean> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(API_ENDPOINTS.analyses.update, {
+        method: 'PUT',
+        headers: getJsonHeaders(),
+        body: JSON.stringify({
+          analyses: [{ id, ...updates }],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData: ApiError = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `Update failed: ${response.status}`);
+      }
+
+      log.info(`Updated analysis: ${id}`);
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update analysis';
+      log.error('Update analysis error:', err);
+      setError(message);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const deleteAnalysis = useCallback(async (id: string): Promise<boolean> => {
     setIsLoading(true);
     setError(null);
@@ -593,6 +626,7 @@ export function useSupabaseAPI() {
     // Analyses
     saveAnalyses,
     loadAnalyses,
+    updateAnalysis,
     deleteAnalysis,
     checkAnalysisByHash,
     runMaintenance,

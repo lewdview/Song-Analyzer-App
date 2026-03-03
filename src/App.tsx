@@ -13,6 +13,7 @@ export interface LyricsAnalysis {
   sentimentScore: number;
   energyFromLyrics: number;
   valenceFromLyrics: number;
+  depthFromLyrics: number;
 }
 
 export interface LyricSegment {

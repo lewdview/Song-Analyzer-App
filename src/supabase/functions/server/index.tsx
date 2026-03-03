@@ -29,11 +29,55 @@ const getStorageClient = () => {
 // Enable CORS for all routes (explicit config); handle OPTIONS preflight
 app.use('*', cors({
   origin: '*',
-  allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['*', 'Authorization', 'apikey', 'Content-Type'],
 }));
 app.options('*', (c) => c.text('', 204));
 app.use('*', logger(console.log));
+
+const DEFAULT_ANALYSIS_SCOPE = 'public';
+
+const sanitizeScopeSegment = (value: string): string => {
+  const trimmed = String(value || '').trim().toLowerCase();
+  const safe = trimmed.replace(/[^a-z0-9:_-]/g, '');
+  return safe.length > 0 ? safe.slice(0, 120) : DEFAULT_ANALYSIS_SCOPE;
+};
+
+const extractJwtSub = (authorizationHeader: string | undefined): string | null => {
+  if (!authorizationHeader) return null;
+  const token = authorizationHeader.replace(/^bearer\s+/i, '').trim();
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+
+  try {
+    const payload = JSON.parse(atob(parts[1]));
+    const sub = payload?.sub;
+    if (typeof sub === 'string' && sub.trim().length > 0) {
+      return sub.trim();
+    }
+  } catch {
+    // Ignore invalid tokens and fall back to other scopes.
+  }
+  return null;
+};
+
+const getAnalysisScope = (c: any): string => {
+  const headerScope = c.req.header('x-user-id');
+  if (typeof headerScope === 'string' && headerScope.trim().length > 0) {
+    return sanitizeScopeSegment(headerScope);
+  }
+
+  const jwtScope = extractJwtSub(c.req.header('authorization'));
+  if (jwtScope) {
+    return sanitizeScopeSegment(jwtScope);
+  }
+
+  return DEFAULT_ANALYSIS_SCOPE;
+};
+
+const analysisIndexKey = (scope: string): string => `analyses:index:${scope}`;
+const analysisRecordKey = (scope: string, analysisId: string): string => `analysis:${scope}:${analysisId}`;
 
 // Health check
 app.get('/make-server-473d7342/health', (c) => {
@@ -123,6 +167,7 @@ app.post('/transcribe', transcribeHandler);
 // Save song analysis to permanent storage
 app.post('/make-server-473d7342/analyses/save', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     const body = await c.req.json();
     const { analyses } = body;
 
@@ -135,7 +180,7 @@ app.post('/make-server-473d7342/analyses/save', async (c) => {
     const newIds: string[] = [];
     
     for (const analysis of analyses) {
-      const key = `analysis:${analysis.id}`;
+      const key = analysisRecordKey(scope, analysis.id);
       
       // Check if this analysis already exists
       const existing = await kv.get(key);
@@ -151,7 +196,7 @@ app.post('/make-server-473d7342/analyses/save', async (c) => {
 
     // Update the index only with new IDs
     if (newIds.length > 0) {
-      const indexKey = 'analyses:index';
+      const indexKey = analysisIndexKey(scope);
       const existingIndex = await kv.get(indexKey) || [];
       const updatedIndex = [...new Set([...existingIndex, ...newIds])];
       await kv.set(indexKey, updatedIndex);
@@ -159,6 +204,7 @@ app.post('/make-server-473d7342/analyses/save', async (c) => {
 
     return c.json({ 
       success: true,
+      scope,
       saved: savedKeys.length,
       skipped: analyses.length - savedKeys.length,
       message: `Successfully saved ${savedKeys.length} new analyses (${analyses.length - savedKeys.length} already existed)`
@@ -176,6 +222,7 @@ app.post('/make-server-473d7342/analyses/save', async (c) => {
 // Update existing analyses (for updating metadata like title)
 app.put('/make-server-473d7342/analyses/update', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     const body = await c.req.json();
     const { analyses } = body;
 
@@ -188,7 +235,7 @@ app.put('/make-server-473d7342/analyses/update', async (c) => {
     const notFoundIds: string[] = [];
     
     for (const analysis of analyses) {
-      const key = `analysis:${analysis.id}`;
+      const key = analysisRecordKey(scope, analysis.id);
       
       // Check if this analysis exists
       const existing = await kv.get(key);
@@ -206,6 +253,7 @@ app.put('/make-server-473d7342/analyses/update', async (c) => {
 
     return c.json({ 
       success: true,
+      scope,
       updated: updatedKeys.length,
       notFound: notFoundIds.length,
       notFoundIds,
@@ -224,23 +272,25 @@ app.put('/make-server-473d7342/analyses/update', async (c) => {
 // Load all saved analyses
 app.get('/make-server-473d7342/analyses/load', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     // Get the index of all analysis IDs
-    const indexKey = 'analyses:index';
+    const indexKey = analysisIndexKey(scope);
     const analysisIds = await kv.get(indexKey) || [];
 
     if (analysisIds.length === 0) {
-      return c.json({ analyses: [] });
+      return c.json({ analyses: [], count: 0, scope });
     }
 
     // Fetch all analyses
-    const keys = analysisIds.map((id: string) => `analysis:${id}`);
+    const keys = analysisIds.map((id: string) => analysisRecordKey(scope, id));
     const analyses = await kv.mget(keys);
 
     console.log(`Loaded ${analyses.length} analyses from storage`);
 
     return c.json({ 
       analyses: analyses.filter(a => a !== null),
-      count: analyses.filter(a => a !== null).length
+      count: analyses.filter(a => a !== null).length,
+      scope,
     });
 
   } catch (error) {
@@ -255,14 +305,15 @@ app.get('/make-server-473d7342/analyses/load', async (c) => {
 // Delete a specific analysis (also cleans up stored audio)
 app.delete('/make-server-473d7342/analyses/:id', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     const id = c.req.param('id');
-    const key = `analysis:${id}`;
+    const key = analysisRecordKey(scope, id);
 
     // Delete the analysis from KV store
     await kv.del(key);
 
     // Update the index
-    const indexKey = 'analyses:index';
+    const indexKey = analysisIndexKey(scope);
     const existingIndex = await kv.get(indexKey) || [];
     const updatedIndex = existingIndex.filter((analysisId: string) => analysisId !== id);
     await kv.set(indexKey, updatedIndex);
@@ -293,6 +344,7 @@ app.delete('/make-server-473d7342/analyses/:id', async (c) => {
 
     return c.json({ 
       success: true,
+      scope,
       message: `Analysis ${id} deleted successfully`
     });
 
@@ -308,13 +360,15 @@ app.delete('/make-server-473d7342/analyses/:id', async (c) => {
 // Check if analysis exists by ID
 app.get('/make-server-473d7342/analyses/check/:id', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     const id = c.req.param('id');
-    const key = `analysis:${id}`;
+    const key = analysisRecordKey(scope, id);
     const analysis = await kv.get(key);
     
     return c.json({ 
       exists: analysis !== null,
-      id
+      id,
+      scope,
     });
   } catch (error) {
     console.error('Check analysis error:', error);
@@ -329,6 +383,7 @@ app.get('/make-server-473d7342/analyses/check/:id', async (c) => {
 // Returns the existing analysis if found, with info about whether it has timestamped lyrics
 app.post('/make-server-473d7342/analyses/check-hash', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     const body = await c.req.json();
     const { fileHash } = body;
 
@@ -337,18 +392,19 @@ app.post('/make-server-473d7342/analyses/check-hash', async (c) => {
     }
 
     // Get all analyses and search for matching hash
-    const indexKey = 'analyses:index';
+    const indexKey = analysisIndexKey(scope);
     const analysisIds = await kv.get(indexKey) || [];
 
     if (analysisIds.length === 0) {
       return c.json({ 
         found: false,
+        scope,
         fileHash
       });
     }
 
     // Fetch all analyses to search for hash
-    const keys = analysisIds.map((id: string) => `analysis:${id}`);
+    const keys = analysisIds.map((id: string) => analysisRecordKey(scope, id));
     const analyses = await kv.mget(keys);
     
     // Find analysis with matching hash
@@ -357,6 +413,7 @@ app.post('/make-server-473d7342/analyses/check-hash', async (c) => {
     if (!matchingAnalysis) {
       return c.json({ 
         found: false,
+        scope,
         fileHash
       });
     }
@@ -378,6 +435,7 @@ app.post('/make-server-473d7342/analyses/check-hash', async (c) => {
 
     return c.json({ 
       found: true,
+      scope,
       fileHash,
       analysis: matchingAnalysis,
       hasTimestampedLyrics,
@@ -398,13 +456,14 @@ app.post('/make-server-473d7342/analyses/check-hash', async (c) => {
 // Database maintenance/rebuild function
 app.post('/make-server-473d7342/analyses/maintenance', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     console.log('Starting database maintenance...');
     
-    const indexKey = 'analyses:index';
+    const indexKey = analysisIndexKey(scope);
     const currentIndex = await kv.get(indexKey) || [];
     
     // Get all analysis keys from the database
-    const allAnalysisKeys = await kv.getByPrefix('analysis:');
+    const allAnalysisKeys = await kv.getByPrefix(`analysis:${scope}:`);
     const actualAnalyses = allAnalysisKeys.filter(a => a !== null);
     
     // Extract IDs from actual analyses
@@ -424,6 +483,7 @@ app.post('/make-server-473d7342/analyses/maintenance', async (c) => {
     
     return c.json({ 
       success: true,
+      scope,
       stats: {
         totalAnalyses: actualAnalyses.length,
         indexBefore: currentIndex.length,
@@ -448,9 +508,10 @@ app.post('/make-server-473d7342/analyses/maintenance', async (c) => {
 // Deduplicate analyses - remove duplicates keeping the best version (with timestamped lyrics)
 app.post('/make-server-473d7342/analyses/deduplicate', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     console.log('Starting deduplication scan...');
     
-    const indexKey = 'analyses:index';
+    const indexKey = analysisIndexKey(scope);
     const analysisIds = await kv.get(indexKey) || [];
 
     if (analysisIds.length === 0) {
@@ -462,7 +523,7 @@ app.post('/make-server-473d7342/analyses/deduplicate', async (c) => {
     }
 
     // Fetch all analyses
-    const keys = analysisIds.map((id: string) => `analysis:${id}`);
+    const keys = analysisIds.map((id: string) => analysisRecordKey(scope, id));
     const analyses = await kv.mget(keys);
     const validAnalyses = analyses.filter((a: any) => a !== null);
 
@@ -562,7 +623,7 @@ app.post('/make-server-473d7342/analyses/deduplicate', async (c) => {
 
     // Delete duplicates
     for (const id of duplicatesToRemove) {
-      await kv.del(`analysis:${id}`);
+      await kv.del(analysisRecordKey(scope, id));
     }
 
     // Rebuild index with only kept analyses
@@ -582,6 +643,7 @@ app.post('/make-server-473d7342/analyses/deduplicate', async (c) => {
 
     return c.json({ 
       success: true,
+      scope,
       message: `Removed ${duplicatesToRemove.length} duplicate analyses. ${newIndex.length} unique files remain.`,
       stats
     });
@@ -598,9 +660,10 @@ app.post('/make-server-473d7342/analyses/deduplicate', async (c) => {
 // Remove analyses that don't have a file hash (legacy/incomplete entries)
 app.post('/make-server-473d7342/analyses/remove-no-hash', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     console.log('Removing analyses without file hash...');
     
-    const indexKey = 'analyses:index';
+    const indexKey = analysisIndexKey(scope);
     const analysisIds = await kv.get(indexKey) || [];
 
     if (analysisIds.length === 0) {
@@ -612,7 +675,7 @@ app.post('/make-server-473d7342/analyses/remove-no-hash', async (c) => {
     }
 
     // Fetch all analyses
-    const keys = analysisIds.map((id: string) => `analysis:${id}`);
+    const keys = analysisIds.map((id: string) => analysisRecordKey(scope, id));
     const analyses = await kv.mget(keys);
     const validAnalyses = analyses.filter((a: any) => a !== null);
 
@@ -632,7 +695,7 @@ app.post('/make-server-473d7342/analyses/remove-no-hash', async (c) => {
 
     // Delete analyses without hash
     for (const id of toRemove) {
-      await kv.del(`analysis:${id}`);
+      await kv.del(analysisRecordKey(scope, id));
       
       // Also try to clean up any associated audio
       try {
@@ -670,6 +733,7 @@ app.post('/make-server-473d7342/analyses/remove-no-hash', async (c) => {
 
     return c.json({ 
       success: true,
+      scope,
       message: `Removed ${toRemove.length} analyses without file hash. ${toKeep.length} analyses remain.`,
       stats
     });
@@ -686,6 +750,7 @@ app.post('/make-server-473d7342/analyses/remove-no-hash', async (c) => {
 // Register variant groups for unlockable content
 app.post('/make-server-473d7342/analyses/variants/register', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     const body = await c.req.json();
     const { variantGroups } = body;
 
@@ -698,7 +763,7 @@ app.post('/make-server-473d7342/analyses/variants/register', async (c) => {
 
     for (const group of variantGroups) {
       try {
-        const groupKey = `variant-group:${group.variantGroupId}`;
+        const groupKey = `variant-group:${scope}:${group.variantGroupId}`;
         
         // Store the variant group metadata
         await kv.set(groupKey, {
@@ -712,7 +777,7 @@ app.post('/make-server-473d7342/analyses/variants/register', async (c) => {
         // Update the primary analysis with variant group ID and unlockable count
         const primaryVariant = group.variants.find((v: any) => v.variantType === 'original') || group.variants[0];
         if (primaryVariant) {
-          const analysisKey = `analysis:${primaryVariant.id}`;
+          const analysisKey = analysisRecordKey(scope, primaryVariant.id);
           const analysis = await kv.get(analysisKey);
           
           if (analysis) {
@@ -739,13 +804,14 @@ app.post('/make-server-473d7342/analyses/variants/register', async (c) => {
     }
 
     // Update variant groups index
-    const variantIndexKey = 'variant-groups:index';
+    const variantIndexKey = `variant-groups:index:${scope}`;
     const existingIndex = await kv.get(variantIndexKey) || [];
     const updatedIndex = [...new Set([...existingIndex, ...registeredGroups])];
     await kv.set(variantIndexKey, updatedIndex);
 
     return c.json({
       success: true,
+      scope,
       registered: registeredGroups.length,
       failed: failedGroups.length,
       failedGroupIds: failedGroups.length > 0 ? failedGroups : undefined,
@@ -764,15 +830,16 @@ app.post('/make-server-473d7342/analyses/variants/register', async (c) => {
 // Get variant group details
 app.get('/make-server-473d7342/analyses/variants/:variantGroupId', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     const variantGroupId = c.req.param('variantGroupId');
-    const groupKey = `variant-group:${variantGroupId}`;
+    const groupKey = `variant-group:${scope}:${variantGroupId}`;
     const group = await kv.get(groupKey);
 
     if (!group) {
       return c.json({ error: 'Variant group not found' }, 404);
     }
 
-    return c.json({ variantGroup: group });
+    return c.json({ variantGroup: group, scope });
 
   } catch (error) {
     console.error('Get variant group error:', error);
