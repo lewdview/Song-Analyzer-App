@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { AudioAnalyzer } from './components/AudioAnalyzer';
 import { AnalysisResults } from './components/AnalysisResults';
 import { CollectionDashboard } from './components/CollectionDashboard';
+import { IntroScreen } from './components/IntroScreen';
+import { CreativeLoader } from './components/CreativeLoader';
 import { Upload, Music, FolderOpen, History, Save, Search, BarChart3, Database, Settings, Zap } from 'lucide-react';
 
 export interface LyricsAnalysis {
@@ -57,6 +59,7 @@ export interface SongAnalysis {
 }
 
 export default function App() {
+  const [showIntro, setShowIntro] = useState(true);
   const [files, setFiles] = useState<File[]>([]);
   const [analyses, setAnalyses] = useState<SongAnalysis[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -91,12 +94,12 @@ export default function App() {
   const processFiles = async (allFiles: File[]) => {
     // Accept all audio files, not just strict mime types
     const selectedFiles = allFiles.filter(file => {
-      const isAudio = file.type.startsWith('audio/') || 
-                     file.name.endsWith('.mp3') || 
-                     file.name.endsWith('.wav');
+      const isAudio = file.type.startsWith('audio/') ||
+        file.name.endsWith('.mp3') ||
+        file.name.endsWith('.wav');
       return isAudio;
     });
-    
+
     if (selectedFiles.length === 0) {
       alert('Please select valid MP3 or WAV files');
       return;
@@ -111,7 +114,7 @@ export default function App() {
 
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i];
-      
+
       // Simulate reading file (you can also use FileReader for real progress)
       await new Promise<void>(resolve => {
         const increment = 100 / totalFiles;
@@ -143,7 +146,7 @@ export default function App() {
       // Check for large files and warn user
       const largeFiles = loadedFiles.filter(f => f.size > 25 * 1024 * 1024);
       if (largeFiles.length > 0) {
-        const largeFileNames = largeFiles.map(f => 
+        const largeFileNames = largeFiles.map(f =>
           `${f.name} (${(f.size / 1024 / 1024).toFixed(2)}MB)`
         ).join(', ');
         console.warn(`Large files detected: ${largeFileNames}. These will be compressed for transcription.`);
@@ -198,7 +201,7 @@ export default function App() {
     setIsSaving(true);
     try {
       const { projectId, publicAnonKey } = await import('./utils/supabase/info.tsx');
-      
+
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-473d7342/analyses/save`,
         {
@@ -220,7 +223,7 @@ export default function App() {
       const data = await response.json();
       console.log('Analyses saved successfully:', data);
       alert(`Successfully saved ${data.saved} analyses to permanent storage!`);
-      
+
       setIsSaving(false);
     } catch (error) {
       console.error('Error saving analyses:', error);
@@ -233,7 +236,7 @@ export default function App() {
     setIsLoadingHistory(true);
     try {
       const { projectId, publicAnonKey } = await import('./utils/supabase/info.tsx');
-      
+
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-473d7342/analyses/load`,
         {
@@ -252,20 +255,20 @@ export default function App() {
 
       const data = await response.json();
       console.log('Loaded analyses from storage:', data);
-      
+
       if (data.analyses.length === 0) {
         alert('No saved analyses found');
       } else {
         // Apply any localStorage edits to the loaded analyses
         const { applyLyricsEditsToAll } = await import('./utils/lyricsStorage');
         const analysesWithEdits = applyLyricsEditsToAll(data.analyses);
-        
+
         setSavedAnalyses(analysesWithEdits);
         setAnalyses(analysesWithEdits);
         setShowHistory(true);
         alert(`Loaded ${data.count} saved analyses`);
       }
-      
+
       setIsLoadingHistory(false);
     } catch (error) {
       console.error('Error loading analyses:', error);
@@ -285,10 +288,10 @@ export default function App() {
 
     setIsRunningMaintenance(true);
     setMaintenanceStats(null);
-    
+
     try {
       const { projectId, publicAnonKey } = await import('./utils/supabase/info.tsx');
-      
+
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-473d7342/analyses/maintenance`,
         {
@@ -309,7 +312,7 @@ export default function App() {
       console.log('Maintenance complete:', data);
       setMaintenanceStats(data.stats);
       alert(`Database maintenance complete!\n\nTotal analyses: ${data.stats.totalAnalyses}\nIndex entries before: ${data.stats.indexBefore}\nIndex entries after: ${data.stats.indexAfter}\n\nOrphaned entries removed: ${data.stats.orphanedIndexEntries}\nMissing entries added: ${data.stats.missingIndexEntries}`);
-      
+
       setIsRunningMaintenance(false);
     } catch (error) {
       console.error('Error running maintenance:', error);
@@ -324,10 +327,10 @@ export default function App() {
     }
 
     setIsGeneratingTitles(true);
-    
+
     try {
       const { projectId, publicAnonKey } = await import('./utils/supabase/info.tsx');
-      
+
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/batch-generate-titles`,
         {
@@ -347,7 +350,7 @@ export default function App() {
       const data = await response.json();
       console.log('Title generation complete:', data);
       alert(`Title generation complete!\n\n${data.message}`);
-      
+
       setIsGeneratingTitles(false);
     } catch (error) {
       console.error('Error generating titles:', error);
@@ -359,16 +362,18 @@ export default function App() {
   // Filter analyses based on search and filters
   const filteredAnalyses = analyses.filter(analysis => {
     const matchesSearch = analysis.fileName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         analysis.lyrics.toLowerCase().includes(searchQuery.toLowerCase());
-    
+      analysis.lyrics.toLowerCase().includes(searchQuery.toLowerCase());
+
     const matchesGenre = filterGenre === 'all' || analysis.genre.includes(filterGenre);
     const matchesMood = filterMood === 'all' || analysis.mood.includes(filterMood);
-    
+
     return matchesSearch && matchesGenre && matchesMood;
   });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+      {/* ── Animated Intro Screen ── */}
+      {showIntro && <IntroScreen onComplete={() => setShowIntro(false)} />}
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Header */}
         <div className="text-center mb-12">
@@ -384,7 +389,7 @@ export default function App() {
               Need provider/database setup? Open Studio Setup.
             </p>
           )}
-          
+
           {/* Load History Button */}
           <div className="mt-4 flex gap-3 justify-center">
             <button
@@ -395,7 +400,7 @@ export default function App() {
               <History className="w-5 h-5" />
               {isLoadingHistory ? 'Loading...' : 'Load Saved Analyses'}
             </button>
-            
+
             <button
               onClick={runDatabaseMaintenance}
               disabled={isRunningMaintenance}
@@ -422,9 +427,8 @@ export default function App() {
           <div className="flex flex-col items-center justify-center">
             <label
               htmlFor="file-upload"
-              className={`cursor-pointer flex flex-col items-center justify-center w-full p-12 border-2 border-dashed border-purple-300 rounded-xl hover:border-purple-400 transition-colors bg-white/5 ${
-                isUploading ? 'pointer-events-none opacity-50' : ''
-              }`}
+              className={`cursor-pointer flex flex-col items-center justify-center w-full p-12 border-2 border-dashed border-purple-300 rounded-xl hover:border-purple-400 transition-colors bg-white/5 ${isUploading ? 'pointer-events-none opacity-50' : ''
+                }`}
             >
               <Upload className="w-16 h-16 text-purple-300 mb-4" />
               <span className="text-purple-100 mb-2">
@@ -448,9 +452,8 @@ export default function App() {
             <div className="mt-4 w-full">
               <label
                 htmlFor="folder-upload"
-                className={`cursor-pointer flex items-center justify-center w-full p-4 border-2 border-dashed border-blue-300 rounded-xl hover:border-blue-400 transition-colors bg-blue-500/5 ${
-                  isUploading ? 'pointer-events-none opacity-50' : ''
-                }`}
+                className={`cursor-pointer flex items-center justify-center w-full p-4 border-2 border-dashed border-blue-300 rounded-xl hover:border-blue-400 transition-colors bg-blue-500/5 ${isUploading ? 'pointer-events-none opacity-50' : ''
+                  }`}
               >
                 <FolderOpen className="w-6 h-6 text-blue-300 mr-2" />
                 <span className="text-blue-100">
@@ -471,19 +474,14 @@ export default function App() {
               </label>
             </div>
 
-            {/* Upload Progress Bar */}
+            {/* Upload Progress Bar — Creative Cipher Loader */}
             {isUploading && (
               <div className="mt-6 w-full">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-purple-100">Uploading files...</span>
-                  <span className="text-purple-300">{uploadProgress.toFixed(0)}%</span>
-                </div>
-                <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
-                  <div
-                    className="bg-gradient-to-r from-green-500 to-blue-500 h-full transition-all duration-300 rounded-full"
-                    style={{ width: `${uploadProgress}%` }}
-                  />
-                </div>
+                <CreativeLoader
+                  progress={uploadProgress}
+                  label="Uploading files..."
+                  statusText={uploadProgress < 100 ? '[ reading audio signatures... ]' : '[ ready ]'}
+                />
               </div>
             )}
 
@@ -633,11 +631,10 @@ export default function App() {
             <div className="flex gap-2 mb-6 border-b border-white/10">
               <button
                 onClick={() => setActiveTab('results')}
-                className={`px-6 py-3 transition-colors ${
-                  activeTab === 'results'
+                className={`px-6 py-3 transition-colors ${activeTab === 'results'
                     ? 'text-white border-b-2 border-purple-400'
                     : 'text-purple-300 hover:text-white'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2">
                   <Music className="w-4 h-4" />
@@ -646,11 +643,10 @@ export default function App() {
               </button>
               <button
                 onClick={() => setActiveTab('collection')}
-                className={`px-6 py-3 transition-colors ${
-                  activeTab === 'collection'
+                className={`px-6 py-3 transition-colors ${activeTab === 'collection'
                     ? 'text-white border-b-2 border-purple-400'
                     : 'text-purple-300 hover:text-white'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2">
                   <BarChart3 className="w-4 h-4" />

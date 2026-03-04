@@ -14,6 +14,7 @@ import {
   saveCreativeHistoryToCloud,
   type CreativeHistoryEntry,
 } from '@/services/creativeHistory';
+import { IntroScreen } from '@/components/IntroScreen';
 import './tooldrop.css';
 
 function clamp(value: number, min: number, max: number): number {
@@ -64,6 +65,7 @@ function formatDateTime(value: string): string {
 }
 
 export function TooldropPage() {
+  const [showCipherIntro, setShowCipherIntro] = useState(true);
   const [authReady, setAuthReady] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [accountMessage, setAccountMessage] = useState('');
@@ -394,6 +396,8 @@ export function TooldropPage() {
 
   return (
     <main className="td-page">
+      {/* ── Full-page Cipher Intro ── */}
+      {showCipherIntro && <IntroScreen onComplete={() => setShowCipherIntro(false)} />}
       <div className="td-shell">
         <header className="td-header">
           <div>
