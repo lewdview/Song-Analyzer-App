@@ -193,12 +193,14 @@ export function TooldropPage() {
 
   const sentimentPercent = analysis ? Math.round(analysis.sentimentScore * 100) : 0;
 
+  // Only start the card-level intro countdown AFTER the full-screen cipher intro is gone
   useEffect(() => {
+    if (showCipherIntro) return; // wait until cipher intro exits
     const timer = window.setTimeout(() => {
       setIntroReady(true);
-    }, 2200);
+    }, 2800); // show orb + "Start Free Analysis" for 2.8 s then auto-open
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [showCipherIntro]);
 
   useEffect(() => {
     if (isSignedIn) {
