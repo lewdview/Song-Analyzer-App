@@ -50,6 +50,82 @@
   padding: 1.25rem;
 }
 
+.td-card--offer {
+  border-color: rgba(250, 204, 21, 0.42);
+  background: linear-gradient(140deg, rgba(51, 65, 85, 0.72), rgba(120, 53, 15, 0.32));
+  animation: td-offer-rise 0.45s ease-out both;
+}
+
+.td-compose-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 430px;
+  margin-top: 1.1rem;
+}
+
+.td-intro-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  text-align: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(56, 189, 248, 0.22), transparent 55%),
+    radial-gradient(circle at 72% 75%, rgba(251, 191, 36, 0.24), transparent 55%),
+    rgba(2, 6, 23, 0.9);
+  transition: opacity 0.55s ease, transform 0.55s ease, visibility 0.55s ease;
+}
+
+.td-intro-overlay--hidden {
+  opacity: 0;
+  transform: scale(1.08);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.td-intro-orb {
+  width: 132px;
+  height: 132px;
+  border-radius: 999px;
+  border: 2px solid rgba(125, 211, 252, 0.58);
+  box-shadow: 0 0 24px rgba(56, 189, 248, 0.22);
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.55) 0%, rgba(56, 189, 248, 0.32) 45%, rgba(2, 6, 23, 0) 72%);
+  animation: td-intro-float 3s ease-in-out infinite, td-intro-spin 8s linear infinite;
+}
+
+.td-title--intro {
+  font-size: clamp(1.8rem, 5.5vw, 2.6rem);
+  max-width: 16ch;
+}
+
+.td-subtitle--intro {
+  max-width: 44ch;
+}
+
+.td-compose-body {
+  position: relative;
+  z-index: 1;
+  opacity: 0;
+  transform: translateY(16px) scale(0.985);
+  transition: opacity 0.48s ease, transform 0.48s ease;
+  pointer-events: none;
+}
+
+.td-compose-body--ready {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.td-compose-note {
+  margin-top: 0.85rem;
+}
+
 .td-results {
   margin-top: 1.75rem;
   display: grid;
@@ -329,6 +405,36 @@
   font-size: 0.88rem;
   color: rgba(226, 232, 240, 0.9);
   line-height: 1.45;
+}
+
+@keyframes td-intro-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-8px) scale(1.04);
+  }
+}
+
+@keyframes td-intro-spin {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes td-offer-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .td-meter-head {
@@ -627,6 +733,15 @@
   .td-controls {
     display: grid;
     gap: 0.6rem;
+  }
+
+  .td-compose-card {
+    min-height: 470px;
+  }
+
+  .td-intro-orb {
+    width: 108px;
+    height: 108px;
   }
 }
 

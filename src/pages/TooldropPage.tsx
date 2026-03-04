@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { LogOut, Sparkles } from 'lucide-react';
 import { analyzeCreativeLyrics, type CreativeEngineResult, type HeatmapPoint } from '@/services/creativeEngine';
 import { fetchOwnSharedProfile, sharedSupabase, type SharedProfile } from '@/services/sharedSupabase';
@@ -83,6 +83,9 @@ export function TooldropPage() {
   );
   const [magicEmail, setMagicEmail] = useState('');
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [showSignInOffer, setShowSignInOffer] = useState(false);
+  const [introReady, setIntroReady] = useState(false);
+  const signInOfferRef = useRef<HTMLElement | null>(null);
   const isSignedIn = Boolean(signedInUserId && accessToken);
 
   useEffect(() => {
@@ -187,9 +190,25 @@ export function TooldropPage() {
   }, [profile, signedInEmail]);
 
   const sentimentPercent = analysis ? Math.round(analysis.sentimentScore * 100) : 0;
-  const historyModeLabel = isSignedIn
-    ? 'Saved to your account and backed up locally'
-    : 'Temporary local history on this device';
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setIntroReady(true);
+    }, 2200);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (isSignedIn) {
+      setShowSignInOffer(false);
+    }
+  }, [isSignedIn]);
+
+  useEffect(() => {
+    if (showSignInOffer && signInOfferRef.current) {
+      signInOfferRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [showSignInOffer]);
 
   useEffect(() => {
     setHistoryEntries(readLocalCreativeHistory());
@@ -335,10 +354,12 @@ export function TooldropPage() {
     setIsAnalyzing(false);
 
     if (!isSignedIn || !accessToken) {
-      setStatusMessage('Saved to temporary local history. Sign in to keep it on your account.');
+      setShowSignInOffer(true);
+      setStatusMessage('Analyzed for free. Sign in below if you want to save across devices.');
       return;
     }
 
+    setShowSignInOffer(false);
     setIsCloudSaving(true);
     const saved = await saveCreativeHistoryToCloud(accessToken, [entry]);
     setIsCloudSaving(false);
@@ -398,13 +419,89 @@ export function TooldropPage() {
           </div>
         </header>
 
-        <section className="td-card td-card--panel">
-          <p className="td-eyebrow">Account Is Optional</p>
-          <p className="td-subtitle">
-            Use the Creative Engine with no sign-in. Sign in only when you want permanent account saves.
-          </p>
+        <section className="td-card td-compose-card">
+          <div className={`td-intro-overlay${introReady ? ' td-intro-overlay--hidden' : ''}`}>
+            <div className="td-intro-orb" aria-hidden="true" />
+            <p className="td-eyebrow">Creative Engine</p>
+            <h2 className="td-title td-title--intro">Song Lyrics + Poems</h2>
+            <p className="td-subtitle td-subtitle--intro">
+              Drop in your words. Get instant lyrical analysis for free.
+            </p>
+            <button
+              type="button"
+              className="td-btn td-btn--primary td-btn--glow"
+              onClick={() => setIntroReady(true)}
+            >
+              Start Free Analysis
+            </button>
+          </div>
 
-          {!isSignedIn && (
+          <div className={`td-compose-body${introReady ? ' td-compose-body--ready' : ''}`}>
+            <p className="td-eyebrow">Insert Song Lyrics Or Poem</p>
+            <p className="td-subtitle">Analyze for free. No sign-in required.</p>
+
+            <textarea
+              value={lyricsInput}
+              onChange={(event) => setLyricsInput(event.target.value)}
+              placeholder="Paste your song lyrics or poem here..."
+              className="td-textarea"
+            />
+
+            {lyricsInput.trim().length > 0 && (
+              <div className="td-word-count">
+                {lyricsInput.trim().split(/\s+/).length} words · {lyricsInput.trim().split('\n').filter(Boolean).length} lines
+              </div>
+            )}
+
+            <div className="td-row td-row--wrap td-controls">
+              <button
+                type="button"
+                onClick={() => {
+                  void handleAnalyze();
+                }}
+                disabled={isAnalyzing}
+                className={`td-btn td-btn--primary${lyricsInput.trim().length >= 12 && !isAnalyzing ? ' td-btn--glow' : ''}`}
+              >
+                {isAnalyzing ? 'Analyzing...' : 'Analyze Free'}
+              </button>
+
+              <label className="td-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={applyArtistName}
+                  onChange={(event) => setApplyArtistName(event.target.checked)}
+                />
+                Apply Your Artist Name
+              </label>
+
+              <input
+                value={artistName}
+                onChange={(event) => setArtistName(event.target.value)}
+                placeholder="Artist name"
+                className="td-input td-input--small"
+              />
+            </div>
+
+            <p className="td-subtitle td-subtitle--compact td-compose-note">
+              {isSignedIn
+                ? `Signed in as ${accountLabel} · syncing ${isSyncingHistory ? 'in progress' : 'on'}`
+                : 'Guest mode active · local temporary history only'}
+              {isCloudSaving ? ' · saving to cloud...' : ''}
+            </p>
+
+            {isSignedIn && accountMessage && <p className="td-message td-message--warning">{accountMessage}</p>}
+            {statusMessage && <p className="td-message td-message--success">{statusMessage}</p>}
+          </div>
+        </section>
+
+        {!isSignedIn && showSignInOffer && (
+          <section ref={signInOfferRef} className="td-card td-card--offer">
+            <p className="td-eyebrow">Save Your Work</p>
+            <h2 className="td-title td-title--small">Keep this analysis forever</h2>
+            <p className="td-subtitle">
+              You already analyzed for free. Sign in now if you want permanent saves and cross-device history.
+            </p>
+
             <div className="td-stack">
               <button
                 type="button"
@@ -450,65 +547,10 @@ export function TooldropPage() {
                 </button>
               </div>
             </div>
-          )}
 
-          <p className="td-subtitle td-subtitle--compact" style={{ marginTop: '0.85rem' }}>
-            {historyModeLabel}
-            {isSyncingHistory ? ' · syncing history...' : ''}
-            {isCloudSaving ? ' · saving latest analysis...' : ''}
-          </p>
-          {accountMessage && <p className="td-message td-message--warning">{accountMessage}</p>}
-        </section>
-
-        <section className="td-card">
-          <p className="td-eyebrow">Paste your lyrics below.</p>
-          <p className="td-subtitle">See what your music says about you.</p>
-
-          <textarea
-            value={lyricsInput}
-            onChange={(event) => setLyricsInput(event.target.value)}
-            placeholder="Paste lyrics here..."
-            className="td-textarea"
-          />
-
-          {/* Live word & line count */}
-          {lyricsInput.trim().length > 0 && (
-            <div className="td-word-count">
-              {lyricsInput.trim().split(/\s+/).length} words · {lyricsInput.trim().split('\n').filter(Boolean).length} lines
-            </div>
-          )}
-
-          <div className="td-row td-row--wrap td-controls">
-            <button
-              type="button"
-              onClick={() => {
-                void handleAnalyze();
-              }}
-              disabled={isAnalyzing}
-              className={`td-btn td-btn--primary${lyricsInput.trim().length >= 12 && !isAnalyzing ? ' td-btn--glow' : ''}`}
-            >
-              {isAnalyzing ? 'Analyzing...' : 'Analyze'}
-            </button>
-
-            <label className="td-checkbox-label">
-              <input
-                type="checkbox"
-                checked={applyArtistName}
-                onChange={(event) => setApplyArtistName(event.target.checked)}
-              />
-              Apply Your Artist Name
-            </label>
-
-            <input
-              value={artistName}
-              onChange={(event) => setArtistName(event.target.value)}
-              placeholder="Artist name"
-              className="td-input td-input--small"
-            />
-          </div>
-
-          {statusMessage && <p className="td-message td-message--success">{statusMessage}</p>}
-        </section>
+            {accountMessage && <p className="td-message td-message--warning">{accountMessage}</p>}
+          </section>
+        )}
 
         <section className="td-card td-card--panel">
           <div className="td-row td-row--between td-history-header">
