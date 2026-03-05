@@ -15,6 +15,7 @@ import {
   type CreativeHistoryEntry,
 } from '@/services/creativeHistory';
 import { IntroScreen } from '@/components/IntroScreen';
+import { CipherPoster } from '@/components/CipherPoster';
 import './tooldrop.css';
 
 function clamp(value: number, min: number, max: number): number {
@@ -636,6 +637,9 @@ export function TooldropPage() {
               <p className="td-subtitle">
                 {analysis.wordCount} words · Arc: {analysis.narrativeArc} · Confidence {analysis.confidence}%
               </p>
+              <p className="td-subtitle" style={{ marginTop: '0.25rem', fontFamily: 'Share Tech Mono, monospace', fontSize: '0.82rem', letterSpacing: '0.08em', color: 'rgba(180,140,255,0.85)' }}>
+                ↳ {analysis.lyricalFingerprint}
+              </p>
               <div className="td-meter-track" style={{ marginTop: '0.5rem' }}>
                 <div
                   className="td-meter-fill td-meter-fill--emerald"
@@ -771,6 +775,42 @@ export function TooldropPage() {
                       <div className="td-meter-fill td-meter-fill--orange" style={{ width: `${analysis.emotionalComplexity}%` }} />
                     </div>
                   </div>
+                  <div>
+                    <div className="td-row td-row--between td-meter-head">
+                      <span>Flow</span>
+                      <span>{analysis.flowScore}</span>
+                    </div>
+                    <div className="td-meter-track">
+                      <div className="td-meter-fill td-meter-fill--cyan" style={{ width: `${analysis.flowScore}%` }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="td-row td-row--between td-meter-head">
+                      <span>Metaphor Density</span>
+                      <span>{analysis.metaphorDensity}</span>
+                    </div>
+                    <div className="td-meter-track">
+                      <div className="td-meter-fill td-meter-fill--fuchsia" style={{ width: `${analysis.metaphorDensity}%` }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="td-row td-row--between td-meter-head">
+                      <span>Slang Index</span>
+                      <span>{analysis.slangIndex}</span>
+                    </div>
+                    <div className="td-meter-track">
+                      <div className="td-meter-fill td-meter-fill--amber" style={{ width: `${analysis.slangIndex}%` }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="td-row td-row--between td-meter-head">
+                      <span>Sentiment Sharpness</span>
+                      <span>{analysis.sentimentSharpness}</span>
+                    </div>
+                    <div className="td-meter-track">
+                      <div className="td-meter-fill td-meter-fill--rose" style={{ width: `${analysis.sentimentSharpness}%` }} />
+                    </div>
+                  </div>
                 </div>
               </div>
             </article>
@@ -814,67 +854,7 @@ export function TooldropPage() {
 
             <article className="td-card td-card--panel">
               <h2 className="td-title td-title--small">Poster Preview</h2>
-              <div className="td-poster">
-                {/* === Large background animation (atmospheric) === */}
-                <div className="td-poster-svg-wrap td-poster-svg-wrap--lg">
-                  <svg viewBox="0 0 200 200" className="td-poster-svg" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                      <radialGradient id="core-glow-lg">
-                        <stop offset="0%" stopColor={analysis.sentimentScore >= 0 ? '#fbbf24' : '#38bdf8'} stopOpacity="0.6" />
-                        <stop offset="100%" stopColor={analysis.sentimentScore >= 0 ? '#f97316' : '#6366f1'} stopOpacity="0" />
-                      </radialGradient>
-                    </defs>
-                    <circle cx="100" cy="100" r={20 + analysis.emotionScore * 0.25} fill="url(#core-glow-lg)" className="td-svg-pulse" style={{ animationDuration: `${3 - analysis.energyScore * 0.015}s` }} />
-                    <circle cx="100" cy="100" r="18" fill="none" stroke={analysis.sentimentScore >= 0 ? '#fbbf24' : '#67e8f9'} strokeWidth="1.5" strokeOpacity={0.3 + analysis.confidence * 0.006} className="td-svg-pulse" style={{ animationDuration: `${2.5 - analysis.energyScore * 0.01}s` }} />
-                    <circle cx="100" cy="100" r="35" fill="none" stroke={analysis.sentimentScore >= 0 ? '#f59e0b' : '#818cf8'} strokeWidth="1.2" strokeOpacity="0.7" strokeDasharray="30 190" strokeLinecap="round" className="td-svg-orbit" style={{ animationDuration: `${6 - analysis.energyScore * 0.035}s` }} />
-                    <circle cx="100" cy="100" r="52" fill="none" stroke={analysis.sentimentScore >= 0 ? '#fbbf24' : '#67e8f9'} strokeWidth="1" strokeOpacity="0.55" strokeDasharray="50 280" strokeLinecap="round" className="td-svg-orbit-reverse" style={{ animationDuration: `${8 - analysis.energyScore * 0.04}s` }} />
-                    <circle cx="100" cy="100" r="70" fill="none" stroke={analysis.sentimentScore >= 0 ? '#fb923c' : '#a5b4fc'} strokeWidth="0.8" strokeOpacity="0.4" strokeDasharray="40 400" strokeLinecap="round" className="td-svg-orbit" style={{ animationDuration: `${12 - analysis.energyScore * 0.06}s` }} />
-                    {Array.from({ length: Math.max(4, Math.round(analysis.emotionalComplexity / 12)) }, (_, i) => {
-                      const count = Math.max(4, Math.round(analysis.emotionalComplexity / 12));
-                      const rad = ((i / count) * 360 * Math.PI) / 180;
-                      const x1 = 100 + Math.cos(rad) * 24, y1 = 100 + Math.sin(rad) * 24;
-                      const x2 = 100 + Math.cos(rad) * (40 + analysis.confidence * 0.45), y2 = 100 + Math.sin(rad) * (40 + analysis.confidence * 0.45);
-                      return <line key={`spoke-lg-${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke={analysis.sentimentScore >= 0 ? '#fcd34d' : '#93c5fd'} strokeWidth="0.5" strokeOpacity={0.15 + analysis.confidence * 0.004} strokeDasharray="2 3" />;
-                    })}
-                    <circle cx="100" cy="100" r="88" fill="none" stroke={analysis.sentimentScore >= 0 ? '#fbbf24' : '#67e8f9'} strokeWidth="0.5" strokeOpacity="0.15" strokeDasharray="4 8" className="td-svg-orbit-reverse" style={{ animationDuration: '20s' }} />
-                  </svg>
-                </div>
-
-                {/* === Small foreground animation (crisp) === */}
-                <div className="td-poster-svg-wrap td-poster-svg-wrap--sm">
-                  <svg viewBox="0 0 200 200" className="td-poster-svg" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                      <radialGradient id="core-glow-sm">
-                        <stop offset="0%" stopColor={analysis.sentimentScore >= 0 ? '#fbbf24' : '#38bdf8'} stopOpacity="0.6" />
-                        <stop offset="100%" stopColor={analysis.sentimentScore >= 0 ? '#f97316' : '#6366f1'} stopOpacity="0" />
-                      </radialGradient>
-                    </defs>
-                    <circle cx="100" cy="100" r={20 + analysis.emotionScore * 0.25} fill="url(#core-glow-sm)" className="td-svg-pulse" style={{ animationDuration: `${3 - analysis.energyScore * 0.015}s` }} />
-                    <circle cx="100" cy="100" r="18" fill="none" stroke={analysis.sentimentScore >= 0 ? '#fbbf24' : '#67e8f9'} strokeWidth="1.5" strokeOpacity={0.3 + analysis.confidence * 0.006} className="td-svg-pulse" style={{ animationDuration: `${2.5 - analysis.energyScore * 0.01}s` }} />
-                    <circle cx="100" cy="100" r="35" fill="none" stroke={analysis.sentimentScore >= 0 ? '#f59e0b' : '#818cf8'} strokeWidth="1.2" strokeOpacity="0.7" strokeDasharray="30 190" strokeLinecap="round" className="td-svg-orbit" style={{ animationDuration: `${6 - analysis.energyScore * 0.035}s` }} />
-                    <circle cx="100" cy="100" r="52" fill="none" stroke={analysis.sentimentScore >= 0 ? '#fbbf24' : '#67e8f9'} strokeWidth="1" strokeOpacity="0.55" strokeDasharray="50 280" strokeLinecap="round" className="td-svg-orbit-reverse" style={{ animationDuration: `${8 - analysis.energyScore * 0.04}s` }} />
-                    <circle cx="100" cy="100" r="70" fill="none" stroke={analysis.sentimentScore >= 0 ? '#fb923c' : '#a5b4fc'} strokeWidth="0.8" strokeOpacity="0.4" strokeDasharray="40 400" strokeLinecap="round" className="td-svg-orbit" style={{ animationDuration: `${12 - analysis.energyScore * 0.06}s` }} />
-                    {Array.from({ length: Math.max(4, Math.round(analysis.emotionalComplexity / 12)) }, (_, i) => {
-                      const count = Math.max(4, Math.round(analysis.emotionalComplexity / 12));
-                      const rad = ((i / count) * 360 * Math.PI) / 180;
-                      const x1 = 100 + Math.cos(rad) * 24, y1 = 100 + Math.sin(rad) * 24;
-                      const x2 = 100 + Math.cos(rad) * (40 + analysis.confidence * 0.45), y2 = 100 + Math.sin(rad) * (40 + analysis.confidence * 0.45);
-                      return <line key={`spoke-sm-${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke={analysis.sentimentScore >= 0 ? '#fcd34d' : '#93c5fd'} strokeWidth="0.5" strokeOpacity={0.15 + analysis.confidence * 0.004} strokeDasharray="2 3" />;
-                    })}
-                    <circle cx="100" cy="100" r="88" fill="none" stroke={analysis.sentimentScore >= 0 ? '#fbbf24' : '#67e8f9'} strokeWidth="0.5" strokeOpacity="0.15" strokeDasharray="4 8" className="td-svg-orbit-reverse" style={{ animationDuration: '20s' }} />
-                  </svg>
-                </div>
-
-                {/* Resonance label — between the two layers */}
-                <div className="td-poster-resonance">
-                  <span className="td-poster-resonance-value">{analysis.confidence}%</span>
-                  <span className="td-poster-resonance-label">RESONANCE</span>
-                </div>
-
-                <p className="td-poster-eyebrow">{posterArtistLine}</p>
-                <h3 className="td-title td-title--medium">{analysis.posterTitle}</h3>
-                <p className="td-subtitle">{analysis.posterSubline}</p>
-              </div>
+              <CipherPoster analysis={analysis} artistLine={posterArtistLine} />
             </article>
           </section>
         )}

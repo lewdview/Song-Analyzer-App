@@ -1,0 +1,267 @@
+/* ═══════════════════════════════════════════════════════════════
+   CIPHER POSTER  — cipher-reveal card matching the intro screen
+   ═══════════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&display=swap');
+
+.cp-poster {
+    position: relative;
+    border-radius: 1rem;
+    border: 1px solid var(--cp-accent, rgba(160, 80, 255, 0.3));
+    min-height: 320px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    overflow: hidden;
+    cursor: crosshair;
+    background:
+        radial-gradient(ellipse 60% 50% at 50% 40%, rgba(60, 0, 120, 0.4) 0%, transparent 70%),
+        rgba(3, 0, 13, 0.92);
+    box-shadow:
+        inset 0 1px 0 rgba(200, 100, 255, 0.12),
+        0 0 40px rgba(80, 0, 200, 0.1);
+    transition: border-color 0.4s, box-shadow 0.4s;
+}
+
+.cp-poster:hover {
+    border-color: var(--cp-accent, rgba(200, 100, 255, 0.6));
+    box-shadow:
+        inset 0 1px 0 rgba(200, 100, 255, 0.22),
+        0 0 80px rgba(120, 0, 255, 0.18);
+}
+
+/* ── Background SVG ── */
+.cp-svg-wrap {
+    position: absolute;
+    left: 50%;
+    pointer-events: none;
+}
+
+.cp-svg-wrap--lg {
+    top: 50%;
+    transform: translate(-50%, -55%);
+    width: 440px;
+    height: 440px;
+    opacity: 0.3;
+}
+
+.cp-svg {
+    width: 100%;
+    height: 100%;
+}
+
+@keyframes cp-orbit {
+    from {
+        transform: rotate(0deg);
+        transform-origin: center;
+    }
+
+    to {
+        transform: rotate(360deg);
+        transform-origin: center;
+    }
+}
+
+@keyframes cp-orbit-reverse {
+    from {
+        transform: rotate(360deg);
+        transform-origin: center;
+    }
+
+    to {
+        transform: rotate(0deg);
+        transform-origin: center;
+    }
+}
+
+@keyframes cp-pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.7;
+    }
+
+    50% {
+        transform: scale(1.12);
+        opacity: 1;
+    }
+}
+
+.cp-svg-orbit {
+    animation: cp-orbit 8s linear infinite;
+    transform-origin: 100px 100px;
+}
+
+.cp-svg-orbit-reverse {
+    animation: cp-orbit-reverse 10s linear infinite;
+    transform-origin: 100px 100px;
+}
+
+.cp-svg-pulse {
+    animation: cp-pulse 3s ease-in-out infinite;
+    transform-origin: 100px 100px;
+}
+
+/* ── Resonance badge ── */
+.cp-resonance {
+    position: absolute;
+    top: 42%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.cp-resonance-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #f0e8ff;
+    text-shadow: 0 0 14px var(--cp-glow, rgba(160, 80, 255, 0.7));
+}
+
+.cp-resonance-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.52rem;
+    color: rgba(180, 130, 255, 0.55);
+    letter-spacing: 0.22em;
+    margin-top: 0.2rem;
+}
+
+/* ── Hover hint ── */
+.cp-hint {
+    position: absolute;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    margin: 0;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: rgba(200, 100, 255, 0.3);
+    animation: cpHintBreath 3s ease-in-out infinite;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+@keyframes cpHintBreath {
+
+    0%,
+    100% {
+        opacity: 0.3;
+    }
+
+    50% {
+        opacity: 0.65;
+    }
+}
+
+/* ── Text stack ── */
+.cp-text-stack {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+/* ── Cipher word spans ── */
+.cp-word {
+    font-family: 'Share Tech Mono', monospace;
+    color: rgba(160, 80, 255, 0.22);
+    letter-spacing: 0.06em;
+    cursor: crosshair;
+    transition: color 0.05s;
+    display: inline;
+}
+
+.cp-word:hover:not(.cp-word--revealed) {
+    color: rgba(220, 100, 255, 0.7);
+    text-shadow: 0 0 10px rgba(200, 80, 255, 0.5);
+}
+
+.cp-word--revealed {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.06em;
+    animation: cpWordReveal 0.4s cubic-bezier(0.2, 0, 0.1, 1) forwards;
+    cursor: default;
+    text-shadow:
+        0 0 6px #fff,
+        0 0 18px var(--cp-glow, rgba(200, 80, 255, 0.9)),
+        0 0 40px var(--cp-accent, rgba(160, 80, 255, 0.5));
+}
+
+@keyframes cpWordReveal {
+    0% {
+        opacity: 0;
+        transform: scale(0.8) translateY(4px);
+        filter: blur(3px);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.1) translateY(-2px);
+        filter: blur(0px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1.0) translateY(0px);
+    }
+}
+
+/* ── Poster text sizes ── */
+.cp-eyebrow {
+    margin: 0;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+
+.cp-title {
+    margin: 0;
+    font-size: clamp(1.2rem, 3vw, 1.65rem);
+    line-height: 1.2;
+    font-family: 'Orbitron', sans-serif;
+}
+
+.cp-subtitle {
+    margin: 0.2rem 0 0;
+    font-size: 0.88rem;
+    font-family: 'Share Tech Mono', monospace;
+    color: rgba(200, 160, 255, 0.7);
+    letter-spacing: 0.05em;
+}
+
+/* ── Re-encrypt button ── */
+.cp-reset-btn {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(180, 100, 255, 0.4);
+    background: none;
+    border: 1px solid rgba(160, 80, 255, 0.15);
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
+    z-index: 3;
+}
+
+.cp-reset-btn:hover {
+    color: rgba(220, 140, 255, 0.9);
+    border-color: rgba(200, 100, 255, 0.5);
+    box-shadow: 0 0 14px rgba(160, 0, 255, 0.2);
+}

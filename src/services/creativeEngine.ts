@@ -8,6 +8,11 @@
 //            sliding-window narrative arc.
 // v3 pass 2: emotional complexity, imagery density, rhyme detection,
 //            confidence score, dominant emotion.
+// v4 pass 1: syllabic flow scoring (rhythm feel).
+// v4 pass 2: metaphor / figurative language density.
+// v4 pass 3: slang / dialect authenticity index.
+// v4 pass 4: sentiment sharpness (peak vs. mean spread).
+// v4 pass 5: lyrical fingerprint (short human-readable voice descriptor).
 // ---------------------------------------------------------------------------
 
 export type MoodBreakdownPoint = {
@@ -44,6 +49,12 @@ export type CreativeEngineResult = {
   confidence: number;           // 0-100  (analysis reliability based on signal strength)
   dominantEmotion: string;      // single strongest emotion label
   chorusLines: string[];        // detected chorus/hook lines
+  // v4 additions
+  flowScore: number;            // 0-100  (syllabic rhythm / perceived flow)
+  metaphorDensity: number;      // 0-100  (figurative language ratio)
+  slangIndex: number;           // 0-100  (dialect / street-language authenticity)
+  sentimentSharpness: number;   // 0-100  (how extreme the sentiment peaks are)
+  lyricalFingerprint: string;   // short human-readable voice descriptor
 };
 
 // ---------------------------------------------------------------------------
@@ -875,6 +886,147 @@ function calcDominantEmotion(tokens: string[]): string {
 }
 
 // ---------------------------------------------------------------------------
+// v4 pass 1 – Syllabic Flow Score
+// ---------------------------------------------------------------------------
+// Counts vowel-clusters per word (proxy for syllable count) then measures
+// variance in syllable-length across lines. High flow = consistent rhythm.
+function calcFlowScore(lines: string[]): number {
+  if (lines.length < 2) return 50;
+
+  const syllableCount = (word: string): number => {
+    const m = word.toLowerCase().match(/[aeiouy]+/g);
+    return m ? m.length : 1;
+  };
+
+  const lineSyllables = lines.map((line) => {
+    const words = tokenize(line);
+    if (words.length === 0) return 0;
+    return words.reduce((sum, w) => sum + syllableCount(w), 0) / words.length;
+  }).filter((n) => n > 0);
+
+  if (lineSyllables.length < 2) return 50;
+
+  const mean = lineSyllables.reduce((a, b) => a + b, 0) / lineSyllables.length;
+  const variance = lineSyllables.reduce((sum, v) => sum + (v - mean) ** 2, 0) / lineSyllables.length;
+  // Low variance = consistent rhythm = high flow score
+  // Variance > 1.5 → score approaches 0; variance 0 → 100
+  return Math.round(clamp(100 - (variance / 1.5) * 80, 10, 100));
+}
+
+// ---------------------------------------------------------------------------
+// v4 pass 2 – Metaphor / Figurative Language Density
+// ---------------------------------------------------------------------------
+const METAPHOR_MARKERS = flat([
+  // Simile connectives
+  'like', 'as', // detected via adjacent non-stop-word check
+  // Common metaphor verb frames
+  'am', 'are', 'is', 'was', 'were',
+  // Personification / transformation
+  'become', 'becomes', 'became', 'turn', 'turns', 'turned',
+  'transform', 'transforms', 'transformed',
+  // Sensory transfer
+  'taste', 'sound', 'echo', 'smell', 'feel', 'looks',
+  // Dead metaphors still counted
+  'drown', 'burn', 'bleed', 'shatter', 'crumble', 'soar',
+  'blind', 'chains', 'cage', 'wall', 'throne', 'crown',
+  'fire', 'ice', 'storm', 'lightning', 'thunder',
+  'ocean', 'sea', 'river', 'flood', 'tide', 'wave',
+  'mountain', 'desert', 'stars', 'moon', 'sun',
+  'diamond', 'gold', 'silver', 'dust', 'ashes',
+  'wings', 'shadow', 'ghost', 'mirror', 'glass',
+  'smoke', 'fog', 'mist', 'veil', 'mask',
+]);
+
+function calcMetaphorDensity(tokens: string[]): number {
+  if (tokens.length === 0) return 0;
+  const hits = countWeighted(tokens, METAPHOR_MARKERS);
+  return Math.round(clamp((hits / tokens.length) * 400, 0, 100));
+}
+
+// ---------------------------------------------------------------------------
+// v4 pass 3 – Slang / Dialect Authenticity Index
+// ---------------------------------------------------------------------------
+const SLANG_LEXICON = flat([
+  // Hip-hop / trap
+  'drip', 'flex', 'slay', 'lit', 'fire', 'lowkey', 'highkey', 'vibe', 'vibes',
+  'finesse', 'grind', 'hustle', 'stack', 'stacks', 'rack', 'racks', 'bands',
+  'goat', 'goats', 'plug', 'wave', 'waves', 'cap', 'no-cap', 'fam', 'bro',
+  'bruh', 'dawg', 'homie', 'crib', 'whip', 'dough', 'bread', 'cheese',
+  'loot', 'fetty', 'guap', 'gwap', 'clout', 'hype', 'woke', 'salty',
+  'bougie', 'ratchet', 'thot', 'bae', 'sis', 'squad', 'crew', 'gang',
+  'g', 'ogs', 'real', 'fake', 'extra', 'basic', 'sus', 'snitch',
+  // General colloquial
+  'gonna', 'wanna', 'gotta', 'kinda', 'sorta', 'lemme', 'gimme', 'tryna',
+  'dunno', 'ain\'t', 'nah', 'yeah', 'yea', 'yo', 'ya', 'aye', 'aight',
+  'til', 'till', 'cuz', 'betta', 'lotta', 'oughta', 'shoulda', 'woulda',
+  'coulda', 'hafta', 'outta', 'finna', 'ima', 'imma',
+  // Emotional slang
+  'deadass', 'no-cap', 'facts', 'say-less', 'respect', 'goated', 'ate',
+  'understood', 'period', 'rent-free', 'living',
+]);
+
+function calcSlangIndex(tokens: string[]): number {
+  if (tokens.length === 0) return 0;
+  const hits = countWeighted(tokens, SLANG_LEXICON);
+  return Math.round(clamp((hits / tokens.length) * 500, 0, 100));
+}
+
+// ---------------------------------------------------------------------------
+// v4 pass 4 – Sentiment Sharpness
+// ---------------------------------------------------------------------------
+// Measures the difference between peak-absolute-sentiment and average,
+// indicating whether the lyrics have explosive emotional moments or are flat.
+function calcSentimentSharpness(lines: string[]): number {
+  if (lines.length < 3) return 50;
+
+  const lineSentiments = lines.map((line) => {
+    const tokens = tokenize(line);
+    if (tokens.length === 0) return 0;
+    const pos = countWeightedContextual(tokens, POSITIVE_WORDS);
+    const neg = countWeightedContextual(tokens, NEGATIVE_WORDS);
+    return (pos - neg) / Math.max(tokens.length * 0.5, 1);
+  });
+
+  const absValues = lineSentiments.map(Math.abs);
+  const mean = absValues.reduce((a, b) => a + b, 0) / absValues.length;
+  const peak = Math.max(...absValues);
+
+  // Sharpness = scaled gap between peak and mean
+  const sharpness = (peak - mean) / Math.max(mean + 0.01, 0.01);
+  return Math.round(clamp(sharpness * 50, 0, 100));
+}
+
+// ---------------------------------------------------------------------------
+// v4 pass 5 – Lyrical Fingerprint
+// ---------------------------------------------------------------------------
+// Produces a short human-readable 3-word descriptor of the lyrical voice
+// by combining arc, dominant emotion, and the top mood.
+function calcLyricalFingerprint(
+  narrativeArc: string,
+  dominantEmotion: string,
+  primaryMood: string,
+  energyScore: number,
+  slangIndex: number,
+): string {
+  const arcWord = {
+    build: 'Rising',
+    decline: 'Descending',
+    wave: 'Turbulent',
+    steady: 'Measured',
+  }[narrativeArc] ?? 'Measured';
+
+  const voiceWord = slangIndex > 40
+    ? 'Street'
+    : energyScore > 70
+      ? 'Aggressive'
+      : energyScore < 30
+        ? 'Intimate'
+        : 'Poetic';
+
+  return `${arcWord} ${dominantEmotion} ${voiceWord}`;
+}
+
+// ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 
@@ -934,6 +1086,13 @@ export function analyzeCreativeLyrics(lyrics: string): CreativeEngineResult {
   const primaryMood = moodBreakdown[0]?.mood || 'Reflective';
   const primaryTheme = themes[0] || 'Identity';
 
+  // v4 dimensions
+  const flowScore = calcFlowScore(lines.length > 0 ? lines : [normalizedLyrics]);
+  const metaphorDensity = calcMetaphorDensity(tokens);
+  const slangIndex = calcSlangIndex(tokens);
+  const sentimentSharpness = calcSentimentSharpness(lines.length > 0 ? lines : [normalizedLyrics]);
+  const lyricalFingerprint = calcLyricalFingerprint(narrativeArc, dominantEmotion, primaryMood, energyScore, slangIndex);
+
   return {
     moodBreakdown,
     themes,
@@ -943,7 +1102,7 @@ export function analyzeCreativeLyrics(lyrics: string): CreativeEngineResult {
     emotionScore,
     heatmap,
     posterTitle: `${primaryMood} ${primaryTheme}`,
-    posterSubline: `Sentiment ${Math.round(sentimentScore * 100)} · Energy ${energyScore}`,
+    posterSubline: `${lyricalFingerprint} · ${sentimentLabel}`,
     // v2
     vocabularyRichness,
     repetitionScore,
@@ -957,5 +1116,11 @@ export function analyzeCreativeLyrics(lyrics: string): CreativeEngineResult {
     confidence,
     dominantEmotion,
     chorusLines,
+    // v4
+    flowScore,
+    metaphorDensity,
+    slangIndex,
+    sentimentSharpness,
+    lyricalFingerprint,
   };
 }
