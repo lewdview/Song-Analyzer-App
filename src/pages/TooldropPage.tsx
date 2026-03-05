@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { LogOut, Sparkles } from 'lucide-react';
+import { LogOut, Mic, Sparkles } from 'lucide-react';
 import { analyzeCreativeLyrics, type CreativeEngineResult, type HeatmapPoint } from '@/services/creativeEngine';
 import { fetchOwnSharedProfile, sharedSupabase, type SharedProfile } from '@/services/sharedSupabase';
 import {
@@ -16,6 +16,7 @@ import {
 } from '@/services/creativeHistory';
 import { IntroScreen } from '@/components/IntroScreen';
 import { CipherPoster } from '@/components/CipherPoster';
+import { TranscribePanel } from '@/components/TranscribePanel';
 import './tooldrop.css';
 
 function clamp(value: number, min: number, max: number): number {
@@ -67,6 +68,7 @@ function formatDateTime(value: string): string {
 
 export function TooldropPage() {
   const [showCipherIntro, setShowCipherIntro] = useState(true);
+  const [showTranscribePanel, setShowTranscribePanel] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [accountMessage, setAccountMessage] = useState('');
@@ -398,468 +400,492 @@ export function TooldropPage() {
   };
 
   return (
-    <main className="td-page">
-      {/* ── Full-page Cipher Intro ── */}
-      {showCipherIntro && <IntroScreen onComplete={() => setShowCipherIntro(false)} />}
-      <div className="td-shell">
-        <header className="td-header">
-          <div>
-            <p className="td-eyebrow">Tooldrop</p>
-            <h1 className="td-title">The Creative Engine</h1>
-          </div>
-          <div className="td-row td-row--wrap td-header-actions">
-            <span className="td-subtitle td-subtitle--compact">
-              {authReady ? (isSignedIn ? accountLabel : 'Using Guest Mode') : 'Checking sign-in...'}
-            </span>
-            {isSignedIn && (
-              <button
-                type="button"
-                onClick={() => {
-                  void handleSignOut();
-                }}
-                className="td-btn td-btn--ghost td-btn--small"
-              >
-                <LogOut size={16} />
-                <span>Sign Out</span>
-              </button>
-            )}
-          </div>
-        </header>
-
-        <section className="td-card td-compose-card">
-          <div className={`td-intro-overlay${introReady ? ' td-intro-overlay--hidden' : ''}`}>
-            <div className="td-intro-orb" aria-hidden="true" />
-            <p className="td-eyebrow">Creative Engine</p>
-            <h2 className="td-title td-title--intro">Song Lyrics + Poems</h2>
-            <p className="td-subtitle td-subtitle--intro">
-              Drop in your words. Get instant lyrical analysis for free.
-            </p>
-            <button
-              type="button"
-              className="td-btn td-btn--primary td-btn--glow"
-              onClick={() => setIntroReady(true)}
-            >
-              Start Free Analysis
-            </button>
-          </div>
-
-          <div className={`td-compose-body${introReady ? ' td-compose-body--ready' : ''}`}>
-            <p className="td-eyebrow">Insert Song Lyrics Or Poem</p>
-            <p className="td-subtitle">Analyze for free. No sign-in required.</p>
-
-            <textarea
-              value={lyricsInput}
-              onChange={(event) => setLyricsInput(event.target.value)}
-              placeholder="Paste your song lyrics or poem here..."
-              className="td-textarea"
-            />
-
-            {lyricsInput.trim().length > 0 && (
-              <div className="td-word-count">
-                {lyricsInput.trim().split(/\s+/).length} words · {lyricsInput.trim().split('\n').filter(Boolean).length} lines
-              </div>
-            )}
-
-            <div className="td-row td-row--wrap td-controls">
-              <button
-                type="button"
-                onClick={() => {
-                  void handleAnalyze();
-                }}
-                disabled={isAnalyzing}
-                className={`td-btn td-btn--primary${lyricsInput.trim().length >= 12 && !isAnalyzing ? ' td-btn--glow' : ''}`}
-              >
-                {isAnalyzing ? 'Analyzing...' : 'Analyze Free'}
-              </button>
-
-              <label className="td-checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={applyArtistName}
-                  onChange={(event) => setApplyArtistName(event.target.checked)}
-                />
-                Apply Your Artist Name
-              </label>
-
-              <input
-                value={artistName}
-                onChange={(event) => setArtistName(event.target.value)}
-                placeholder="Artist name"
-                className="td-input td-input--small"
-              />
-            </div>
-
-            <p className="td-subtitle td-subtitle--compact td-compose-note">
-              {isSignedIn
-                ? `Signed in as ${accountLabel} · syncing ${isSyncingHistory ? 'in progress' : 'on'}`
-                : 'Guest mode active · local temporary history only'}
-              {isCloudSaving ? ' · saving to cloud...' : ''}
-            </p>
-
-            {isSignedIn && accountMessage && <p className="td-message td-message--warning">{accountMessage}</p>}
-            {statusMessage && <p className="td-message td-message--success">{statusMessage}</p>}
-          </div>
-        </section>
-
-        {!isSignedIn && showSignInOffer && (
-          <section ref={signInOfferRef} className="td-card td-card--offer">
-            <p className="td-eyebrow">Save Your Work</p>
-            <h2 className="td-title td-title--small">Keep this analysis forever</h2>
-            <p className="td-subtitle">
-              You already analyzed for free. Sign in now if you want permanent saves and cross-device history.
-            </p>
-
-            <div className="td-stack">
-              <button
-                type="button"
-                onClick={() => {
-                  void handleGithubSignIn();
-                }}
-                disabled={isSigningIn}
-                className="td-btn td-btn--ghost"
-              >
-                Continue With GitHub
-              </button>
-
-              <div className="td-divider">or</div>
-
-              <input
-                type="email"
-                value={magicEmail}
-                onChange={(event) => setMagicEmail(event.target.value)}
-                placeholder="Email for magic link"
-                className="td-input"
-              />
-
-              <div className="td-row td-row--wrap">
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleMagicLinkSignIn();
-                  }}
-                  disabled={isSigningIn}
-                  className="td-btn td-btn--accent"
-                >
-                  Send Magic Link
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleBaseWalletSignIn();
-                  }}
-                  disabled={isSigningIn}
-                  className="td-btn td-btn--wallet"
-                >
-                  Sign In With Base Wallet
-                </button>
-              </div>
-            </div>
-
-            {accountMessage && <p className="td-message td-message--warning">{accountMessage}</p>}
-          </section>
-        )}
-
-        <section className="td-card td-card--panel">
-          <div className="td-row td-row--between td-history-header">
+    <>
+      <main className="td-page">
+        {/* ── Full-page Cipher Intro ── */}
+        {showCipherIntro && <IntroScreen onComplete={() => setShowCipherIntro(false)} />}
+        <div className="td-shell">
+          <header className="td-header">
             <div>
-              <h2 className="td-title td-title--small">Past Lyrical Analysis</h2>
-              <p className="td-subtitle">
-                {historyEntries.length} saved entr{historyEntries.length === 1 ? 'y' : 'ies'}.
-              </p>
+              <p className="td-eyebrow">Tooldrop</p>
+              <h1 className="td-title">The Creative Engine</h1>
             </div>
-          </div>
-
-          {historyEntries.length === 0 ? (
-            <p className="td-subtitle">
-              No history yet. Run an analysis and it will appear here automatically.
-            </p>
-          ) : (
-            <div className="td-history-list">
-              {historyEntries.map((entry) => {
-                const previewText = entry.lyricsInput.replace(/\s+/g, ' ').trim().slice(0, 200);
-                return (
-                  <article key={entry.id} className="td-history-item">
-                    <div className="td-row td-row--between td-row--wrap">
-                      <div>
-                        <p className="td-history-title">{entry.result.posterTitle}</p>
-                        <p className="td-history-meta">
-                          {formatDateTime(entry.createdAt)} · {entry.result.sentimentLabel} · {entry.result.confidence}% confidence
-                        </p>
-                      </div>
-                      <span className={`td-chip ${entry.syncedToCloud ? 'td-chip--saved' : 'td-chip--temp'}`}>
-                        {entry.syncedToCloud ? 'Saved' : 'Temporary'}
-                      </span>
-                    </div>
-
-                    <p className="td-history-snippet">{previewText}</p>
-
-                    <div className="td-row td-row--wrap">
-                      <button
-                        type="button"
-                        className="td-btn td-btn--small td-btn--ghost"
-                        onClick={() => handleLoadHistoryEntry(entry)}
-                      >
-                        Load
-                      </button>
-                      <button
-                        type="button"
-                        className="td-btn td-btn--small td-btn--warning"
-                        onClick={() => {
-                          void handleDeleteHistoryEntry(entry);
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
+            <div className="td-row td-row--wrap td-header-actions">
+              <span className="td-subtitle td-subtitle--compact">
+                {authReady ? (isSignedIn ? accountLabel : 'Using Guest Mode') : 'Checking sign-in...'}
+              </span>
+              {isSignedIn && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleSignOut();
+                  }}
+                  className="td-btn td-btn--ghost td-btn--small"
+                >
+                  <LogOut size={16} />
+                  <span>Sign Out</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="td-btn td-btn--ghost td-btn--small td-btn--mic"
+                onClick={() => setShowTranscribePanel(true)}
+                title="Transcribe audio file"
+              >
+                <Mic size={16} />
+                <span>Transcribe</span>
+              </button>
             </div>
-          )}
-        </section>
+          </header>
 
-        {/* Shimmer loading overlay */}
-        {isAnalyzing && (
-          <section className="td-card td-shimmer-card">
-            <div className="td-shimmer-bar td-shimmer-bar--wide" />
-            <div className="td-shimmer-bar td-shimmer-bar--medium" />
-            <div className="td-shimmer-bar td-shimmer-bar--narrow" />
-          </section>
-        )}
+          <section className="td-card td-compose-card">
+            <div className={`td-intro-overlay${introReady ? ' td-intro-overlay--hidden' : ''}`}>
+              <div className="td-intro-orb" aria-hidden="true" />
+              <p className="td-eyebrow">Creative Engine</p>
+              <h2 className="td-title td-title--intro">Song Lyrics + Poems</h2>
+              <p className="td-subtitle td-subtitle--intro">
+                Drop in your words. Get instant lyrical analysis for free.
+              </p>
+              <button
+                type="button"
+                className="td-btn td-btn--primary td-btn--glow"
+                onClick={() => setIntroReady(true)}
+              >
+                Start Free Analysis
+              </button>
+            </div>
 
-        {analysis && (
-          <section className="td-results">
-            <div className="td-card td-card--success">
-              <div className="td-row">
-                <Sparkles size={16} />
-                <p className="td-title td-title--small">Analysis Complete</p>
-              </div>
-              <p className="td-subtitle">
-                {analysis.wordCount} words · Arc: {analysis.narrativeArc} · Confidence {analysis.confidence}%
-              </p>
-              <p className="td-subtitle" style={{ marginTop: '0.25rem', fontFamily: 'Share Tech Mono, monospace', fontSize: '0.82rem', letterSpacing: '0.08em', color: 'rgba(180,140,255,0.85)' }}>
-                ↳ {analysis.lyricalFingerprint}
-              </p>
-              <div className="td-meter-track" style={{ marginTop: '0.5rem' }}>
-                <div
-                  className="td-meter-fill td-meter-fill--emerald"
-                  style={{ width: `${analysis.confidence}%` }}
+            <div className={`td-compose-body${introReady ? ' td-compose-body--ready' : ''}`}>
+              <p className="td-eyebrow">Insert Song Lyrics Or Poem</p>
+              <p className="td-subtitle">Analyze for free. No sign-in required.</p>
+
+              <textarea
+                value={lyricsInput}
+                onChange={(event) => setLyricsInput(event.target.value)}
+                placeholder="Paste your song lyrics or poem here..."
+                className="td-textarea"
+              />
+
+              {lyricsInput.trim().length > 0 && (
+                <div className="td-word-count">
+                  {lyricsInput.trim().split(/\s+/).length} words · {lyricsInput.trim().split('\n').filter(Boolean).length} lines
+                </div>
+              )}
+
+              <div className="td-row td-row--wrap td-controls">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleAnalyze();
+                  }}
+                  disabled={isAnalyzing}
+                  className={`td-btn td-btn--primary${lyricsInput.trim().length >= 12 && !isAnalyzing ? ' td-btn--glow' : ''}`}
+                >
+                  {isAnalyzing ? 'Analyzing...' : 'Analyze Free'}
+                </button>
+
+                <label className="td-checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={applyArtistName}
+                    onChange={(event) => setApplyArtistName(event.target.checked)}
+                  />
+                  Apply Your Artist Name
+                </label>
+
+                <input
+                  value={artistName}
+                  onChange={(event) => setArtistName(event.target.value)}
+                  placeholder="Artist name"
+                  className="td-input td-input--small"
                 />
               </div>
+
+              <p className="td-subtitle td-subtitle--compact td-compose-note">
+                {isSignedIn
+                  ? `Signed in as ${accountLabel} · syncing ${isSyncingHistory ? 'in progress' : 'on'}`
+                  : 'Guest mode active · local temporary history only'}
+                {isCloudSaving ? ' · saving to cloud...' : ''}
+              </p>
+
+              {isSignedIn && accountMessage && <p className="td-message td-message--warning">{accountMessage}</p>}
+              {statusMessage && <p className="td-message td-message--success">{statusMessage}</p>}
             </div>
+          </section>
 
-            <div className="td-grid">
-              <article className="td-card td-card--panel">
-                <h2 className="td-title td-title--small">Mood Breakdown</h2>
-                <div className="td-stack td-stack--tight">
-                  {analysis.moodBreakdown.map((point) => (
-                    <div key={point.mood}>
-                      <div className="td-row td-row--between td-meter-head">
-                        <span>{point.mood}</span>
-                        <span>{point.score}%</span>
-                      </div>
-                      <div className="td-meter-track">
-                        <div className="td-meter-fill td-meter-fill--cyan" style={{ width: `${point.score}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </article>
+          {!isSignedIn && showSignInOffer && (
+            <section ref={signInOfferRef} className="td-card td-card--offer">
+              <p className="td-eyebrow">Save Your Work</p>
+              <h2 className="td-title td-title--small">Keep this analysis forever</h2>
+              <p className="td-subtitle">
+                You already analyzed for free. Sign in now if you want permanent saves and cross-device history.
+              </p>
 
-              <article className="td-card td-card--panel">
-                <h2 className="td-title td-title--small">Themes</h2>
-                <div className="td-chip-wrap">
-                  {analysis.themes.map((theme) => (
-                    <span key={theme} className="td-chip">
-                      {theme}
-                    </span>
-                  ))}
-                </div>
-                {analysis.topKeywords.length > 0 && (
-                  <>
-                    <h3 className="td-title td-title--small" style={{ marginTop: '0.75rem' }}>Top Keywords</h3>
-                    <div className="td-chip-wrap">
-                      {analysis.topKeywords.map((kw) => (
-                        <span key={kw} className="td-chip td-chip--keyword">
-                          {kw}
-                        </span>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </article>
+              <div className="td-stack">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleGithubSignIn();
+                  }}
+                  disabled={isSigningIn}
+                  className="td-btn td-btn--ghost"
+                >
+                  Continue With GitHub
+                </button>
 
-              <article className="td-card td-card--panel">
-                <h2 className="td-title td-title--small">Sentiment Score</h2>
-                <div className="td-pill" style={{ background: sentimentPillColor(analysis.sentimentScore) }}>
-                  <span>{analysis.sentimentLabel}</span>
-                  <span>{sentimentPercent}</span>
-                </div>
-                <div className="td-chip-wrap" style={{ marginTop: '0.5rem' }}>
-                  <span className="td-chip td-chip--arc">{analysis.narrativeArc} arc</span>
-                  <span className="td-chip td-chip--emotion">{analysis.dominantEmotion}</span>
-                </div>
-              </article>
+                <div className="td-divider">or</div>
 
-              <article className="td-card td-card--panel">
-                <h2 className="td-title td-title--small">Lyric DNA</h2>
-                <div className="td-stack td-stack--tight">
-                  <div>
-                    <div className="td-row td-row--between td-meter-head">
-                      <span>Energy</span>
-                      <span>{analysis.energyScore}</span>
-                    </div>
-                    <div className="td-meter-track">
-                      <div className="td-meter-fill td-meter-fill--fuchsia" style={{ width: `${analysis.energyScore}%` }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="td-row td-row--between td-meter-head">
-                      <span>Emotion</span>
-                      <span>{analysis.emotionScore}</span>
-                    </div>
-                    <div className="td-meter-track">
-                      <div className="td-meter-fill td-meter-fill--amber" style={{ width: `${analysis.emotionScore}%` }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="td-row td-row--between td-meter-head">
-                      <span>Vocab Richness</span>
-                      <span>{analysis.vocabularyRichness}</span>
-                    </div>
-                    <div className="td-meter-track">
-                      <div className="td-meter-fill td-meter-fill--emerald" style={{ width: `${analysis.vocabularyRichness}%` }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="td-row td-row--between td-meter-head">
-                      <span>Repetition</span>
-                      <span>{analysis.repetitionScore}</span>
-                    </div>
-                    <div className="td-meter-track">
-                      <div className="td-meter-fill td-meter-fill--rose" style={{ width: `${analysis.repetitionScore}%` }} />
-                    </div>
-                  </div>
-                </div>
-              </article>
-            </div>
+                <input
+                  type="email"
+                  value={magicEmail}
+                  onChange={(event) => setMagicEmail(event.target.value)}
+                  placeholder="Email for magic link"
+                  className="td-input"
+                />
 
-            <article className="td-card td-card--panel">
-              <h2 className="td-title td-title--small">Craft &amp; Complexity</h2>
-              <div className="td-grid">
-                <div className="td-stack td-stack--tight">
-                  <div>
-                    <div className="td-row td-row--between td-meter-head">
-                      <span>Imagery Density</span>
-                      <span>{analysis.imageryDensity}</span>
-                    </div>
-                    <div className="td-meter-track">
-                      <div className="td-meter-fill td-meter-fill--violet" style={{ width: `${analysis.imageryDensity}%` }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="td-row td-row--between td-meter-head">
-                      <span>Rhyme Score</span>
-                      <span>{analysis.rhymeScore}</span>
-                    </div>
-                    <div className="td-meter-track">
-                      <div className="td-meter-fill td-meter-fill--sky" style={{ width: `${analysis.rhymeScore}%` }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="td-row td-row--between td-meter-head">
-                      <span>Emotional Complexity</span>
-                      <span>{analysis.emotionalComplexity}</span>
-                    </div>
-                    <div className="td-meter-track">
-                      <div className="td-meter-fill td-meter-fill--orange" style={{ width: `${analysis.emotionalComplexity}%` }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="td-row td-row--between td-meter-head">
-                      <span>Flow</span>
-                      <span>{analysis.flowScore}</span>
-                    </div>
-                    <div className="td-meter-track">
-                      <div className="td-meter-fill td-meter-fill--cyan" style={{ width: `${analysis.flowScore}%` }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="td-row td-row--between td-meter-head">
-                      <span>Metaphor Density</span>
-                      <span>{analysis.metaphorDensity}</span>
-                    </div>
-                    <div className="td-meter-track">
-                      <div className="td-meter-fill td-meter-fill--fuchsia" style={{ width: `${analysis.metaphorDensity}%` }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="td-row td-row--between td-meter-head">
-                      <span>Slang Index</span>
-                      <span>{analysis.slangIndex}</span>
-                    </div>
-                    <div className="td-meter-track">
-                      <div className="td-meter-fill td-meter-fill--amber" style={{ width: `${analysis.slangIndex}%` }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="td-row td-row--between td-meter-head">
-                      <span>Sentiment Sharpness</span>
-                      <span>{analysis.sentimentSharpness}</span>
-                    </div>
-                    <div className="td-meter-track">
-                      <div className="td-meter-fill td-meter-fill--rose" style={{ width: `${analysis.sentimentSharpness}%` }} />
-                    </div>
-                  </div>
+                <div className="td-row td-row--wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleMagicLinkSignIn();
+                    }}
+                    disabled={isSigningIn}
+                    className="td-btn td-btn--accent"
+                  >
+                    Send Magic Link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleBaseWalletSignIn();
+                    }}
+                    disabled={isSigningIn}
+                    className="td-btn td-btn--wallet"
+                  >
+                    Sign In With Base Wallet
+                  </button>
                 </div>
               </div>
-            </article>
 
-            <article className="td-card td-card--panel">
-              <h2 className="td-title td-title--small">Visual Heatmap</h2>
-              <div className="td-stack td-stack--tight td-heatmap-scroll">
-                {analysis.heatmap.map((point, index) => {
-                  const s = clamp(point.sentiment, -1, 1);
-                  const borderHue = s >= 0 ? Math.round(40 - s * 30) : Math.round(210 + Math.abs(s) * 20);
-                  const borderSat = Math.round(40 + Math.abs(s) * 45);
-                  const borderLight = Math.round(35 + Math.abs(s) * 15);
+              {accountMessage && <p className="td-message td-message--warning">{accountMessage}</p>}
+            </section>
+          )}
+
+          <section className="td-card td-card--panel">
+            <div className="td-row td-row--between td-history-header">
+              <div>
+                <h2 className="td-title td-title--small">Past Lyrical Analysis</h2>
+                <p className="td-subtitle">
+                  {historyEntries.length} saved entr{historyEntries.length === 1 ? 'y' : 'ies'}.
+                </p>
+              </div>
+            </div>
+
+            {historyEntries.length === 0 ? (
+              <p className="td-subtitle">
+                No history yet. Run an analysis and it will appear here automatically.
+              </p>
+            ) : (
+              <div className="td-history-list">
+                {historyEntries.map((entry) => {
+                  const previewText = entry.lyricsInput.replace(/\s+/g, ' ').trim().slice(0, 200);
                   return (
-                    <div
-                      key={`${index}-${point.line.slice(0, 16)}`}
-                      className="td-heat-row"
-                      style={{
-                        background: heatmapBackground(point),
-                        borderLeftColor: `hsl(${borderHue}, ${borderSat}%, ${borderLight}%)`,
-                      }}
-                    >
-                      {point.line}
-                    </div>
+                    <article key={entry.id} className="td-history-item">
+                      <div className="td-row td-row--between td-row--wrap">
+                        <div>
+                          <p className="td-history-title">{entry.result.posterTitle}</p>
+                          <p className="td-history-meta">
+                            {formatDateTime(entry.createdAt)} · {entry.result.sentimentLabel} · {entry.result.confidence}% confidence
+                          </p>
+                        </div>
+                        <span className={`td-chip ${entry.syncedToCloud ? 'td-chip--saved' : 'td-chip--temp'}`}>
+                          {entry.syncedToCloud ? 'Saved' : 'Temporary'}
+                        </span>
+                      </div>
+
+                      <p className="td-history-snippet">{previewText}</p>
+
+                      <div className="td-row td-row--wrap">
+                        <button
+                          type="button"
+                          className="td-btn td-btn--small td-btn--ghost"
+                          onClick={() => handleLoadHistoryEntry(entry)}
+                        >
+                          Load
+                        </button>
+                        <button
+                          type="button"
+                          className="td-btn td-btn--small td-btn--warning"
+                          onClick={() => {
+                            void handleDeleteHistoryEntry(entry);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </article>
                   );
                 })}
               </div>
-            </article>
+            )}
+          </section>
 
-            {analysis.chorusLines.length > 0 && (
-              <article className="td-card td-card--panel">
-                <h2 className="td-title td-title--small">Detected Chorus / Hook</h2>
-                <div className="td-stack td-stack--tight">
-                  {analysis.chorusLines.map((line, index) => (
-                    <div key={`chorus-${index}`} className="td-heat-row td-heat-row--chorus">
-                      {line}
+          {/* Shimmer loading overlay */}
+          {isAnalyzing && (
+            <section className="td-card td-shimmer-card">
+              <div className="td-shimmer-bar td-shimmer-bar--wide" />
+              <div className="td-shimmer-bar td-shimmer-bar--medium" />
+              <div className="td-shimmer-bar td-shimmer-bar--narrow" />
+            </section>
+          )}
+
+          {analysis && (
+            <section className="td-results">
+              <div className="td-card td-card--success">
+                <div className="td-row">
+                  <Sparkles size={16} />
+                  <p className="td-title td-title--small">Analysis Complete</p>
+                </div>
+                <p className="td-subtitle">
+                  {analysis.wordCount} words · Arc: {analysis.narrativeArc} · Confidence {analysis.confidence}%
+                </p>
+                <p className="td-subtitle" style={{ marginTop: '0.25rem', fontFamily: 'Share Tech Mono, monospace', fontSize: '0.82rem', letterSpacing: '0.08em', color: 'rgba(180,140,255,0.85)' }}>
+                  ↳ {analysis.lyricalFingerprint}
+                </p>
+                <div className="td-meter-track" style={{ marginTop: '0.5rem' }}>
+                  <div
+                    className="td-meter-fill td-meter-fill--emerald"
+                    style={{ width: `${analysis.confidence}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="td-grid">
+                <article className="td-card td-card--panel">
+                  <h2 className="td-title td-title--small">Mood Breakdown</h2>
+                  <div className="td-stack td-stack--tight">
+                    {analysis.moodBreakdown.map((point) => (
+                      <div key={point.mood}>
+                        <div className="td-row td-row--between td-meter-head">
+                          <span>{point.mood}</span>
+                          <span>{point.score}%</span>
+                        </div>
+                        <div className="td-meter-track">
+                          <div className="td-meter-fill td-meter-fill--cyan" style={{ width: `${point.score}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+
+                <article className="td-card td-card--panel">
+                  <h2 className="td-title td-title--small">Themes</h2>
+                  <div className="td-chip-wrap">
+                    {analysis.themes.map((theme) => (
+                      <span key={theme} className="td-chip">
+                        {theme}
+                      </span>
+                    ))}
+                  </div>
+                  {analysis.topKeywords.length > 0 && (
+                    <>
+                      <h3 className="td-title td-title--small" style={{ marginTop: '0.75rem' }}>Top Keywords</h3>
+                      <div className="td-chip-wrap">
+                        {analysis.topKeywords.map((kw) => (
+                          <span key={kw} className="td-chip td-chip--keyword">
+                            {kw}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </article>
+
+                <article className="td-card td-card--panel">
+                  <h2 className="td-title td-title--small">Sentiment Score</h2>
+                  <div className="td-pill" style={{ background: sentimentPillColor(analysis.sentimentScore) }}>
+                    <span>{analysis.sentimentLabel}</span>
+                    <span>{sentimentPercent}</span>
+                  </div>
+                  <div className="td-chip-wrap" style={{ marginTop: '0.5rem' }}>
+                    <span className="td-chip td-chip--arc">{analysis.narrativeArc} arc</span>
+                    <span className="td-chip td-chip--emotion">{analysis.dominantEmotion}</span>
+                  </div>
+                </article>
+
+                <article className="td-card td-card--panel">
+                  <h2 className="td-title td-title--small">Lyric DNA</h2>
+                  <div className="td-stack td-stack--tight">
+                    <div>
+                      <div className="td-row td-row--between td-meter-head">
+                        <span>Energy</span>
+                        <span>{analysis.energyScore}</span>
+                      </div>
+                      <div className="td-meter-track">
+                        <div className="td-meter-fill td-meter-fill--fuchsia" style={{ width: `${analysis.energyScore}%` }} />
+                      </div>
                     </div>
-                  ))}
+                    <div>
+                      <div className="td-row td-row--between td-meter-head">
+                        <span>Emotion</span>
+                        <span>{analysis.emotionScore}</span>
+                      </div>
+                      <div className="td-meter-track">
+                        <div className="td-meter-fill td-meter-fill--amber" style={{ width: `${analysis.emotionScore}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="td-row td-row--between td-meter-head">
+                        <span>Vocab Richness</span>
+                        <span>{analysis.vocabularyRichness}</span>
+                      </div>
+                      <div className="td-meter-track">
+                        <div className="td-meter-fill td-meter-fill--emerald" style={{ width: `${analysis.vocabularyRichness}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="td-row td-row--between td-meter-head">
+                        <span>Repetition</span>
+                        <span>{analysis.repetitionScore}</span>
+                      </div>
+                      <div className="td-meter-track">
+                        <div className="td-meter-fill td-meter-fill--rose" style={{ width: `${analysis.repetitionScore}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              </div>
+
+              <article className="td-card td-card--panel">
+                <h2 className="td-title td-title--small">Craft &amp; Complexity</h2>
+                <div className="td-grid">
+                  <div className="td-stack td-stack--tight">
+                    <div>
+                      <div className="td-row td-row--between td-meter-head">
+                        <span>Imagery Density</span>
+                        <span>{analysis.imageryDensity}</span>
+                      </div>
+                      <div className="td-meter-track">
+                        <div className="td-meter-fill td-meter-fill--violet" style={{ width: `${analysis.imageryDensity}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="td-row td-row--between td-meter-head">
+                        <span>Rhyme Score</span>
+                        <span>{analysis.rhymeScore}</span>
+                      </div>
+                      <div className="td-meter-track">
+                        <div className="td-meter-fill td-meter-fill--sky" style={{ width: `${analysis.rhymeScore}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="td-row td-row--between td-meter-head">
+                        <span>Emotional Complexity</span>
+                        <span>{analysis.emotionalComplexity}</span>
+                      </div>
+                      <div className="td-meter-track">
+                        <div className="td-meter-fill td-meter-fill--orange" style={{ width: `${analysis.emotionalComplexity}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="td-row td-row--between td-meter-head">
+                        <span>Flow</span>
+                        <span>{analysis.flowScore}</span>
+                      </div>
+                      <div className="td-meter-track">
+                        <div className="td-meter-fill td-meter-fill--cyan" style={{ width: `${analysis.flowScore}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="td-row td-row--between td-meter-head">
+                        <span>Metaphor Density</span>
+                        <span>{analysis.metaphorDensity}</span>
+                      </div>
+                      <div className="td-meter-track">
+                        <div className="td-meter-fill td-meter-fill--fuchsia" style={{ width: `${analysis.metaphorDensity}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="td-row td-row--between td-meter-head">
+                        <span>Slang Index</span>
+                        <span>{analysis.slangIndex}</span>
+                      </div>
+                      <div className="td-meter-track">
+                        <div className="td-meter-fill td-meter-fill--amber" style={{ width: `${analysis.slangIndex}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="td-row td-row--between td-meter-head">
+                        <span>Sentiment Sharpness</span>
+                        <span>{analysis.sentimentSharpness}</span>
+                      </div>
+                      <div className="td-meter-track">
+                        <div className="td-meter-fill td-meter-fill--rose" style={{ width: `${analysis.sentimentSharpness}%` }} />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </article>
-            )}
 
-            <article className="td-card td-card--panel">
-              <h2 className="td-title td-title--small">Poster Preview</h2>
-              <CipherPoster analysis={analysis} artistLine={posterArtistLine} />
-            </article>
-          </section>
-        )}
-      </div>
-    </main>
+              <article className="td-card td-card--panel">
+                <h2 className="td-title td-title--small">Visual Heatmap</h2>
+                <div className="td-stack td-stack--tight td-heatmap-scroll">
+                  {analysis.heatmap.map((point, index) => {
+                    const s = clamp(point.sentiment, -1, 1);
+                    const borderHue = s >= 0 ? Math.round(40 - s * 30) : Math.round(210 + Math.abs(s) * 20);
+                    const borderSat = Math.round(40 + Math.abs(s) * 45);
+                    const borderLight = Math.round(35 + Math.abs(s) * 15);
+                    return (
+                      <div
+                        key={`${index}-${point.line.slice(0, 16)}`}
+                        className="td-heat-row"
+                        style={{
+                          background: heatmapBackground(point),
+                          borderLeftColor: `hsl(${borderHue}, ${borderSat}%, ${borderLight}%)`,
+                        }}
+                      >
+                        {point.line}
+                      </div>
+                    );
+                  })}
+                </div>
+              </article>
+
+              {analysis.chorusLines.length > 0 && (
+                <article className="td-card td-card--panel">
+                  <h2 className="td-title td-title--small">Detected Chorus / Hook</h2>
+                  <div className="td-stack td-stack--tight">
+                    {analysis.chorusLines.map((line, index) => (
+                      <div key={`chorus-${index}`} className="td-heat-row td-heat-row--chorus">
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              )}
+
+              <article className="td-card td-card--panel">
+                <h2 className="td-title td-title--small">Poster Preview</h2>
+                <CipherPoster analysis={analysis} artistLine={posterArtistLine} />
+              </article>
+            </section>
+          )}
+        </div>
+      </main>
+
+      {/* Transcribe panel + backdrop */}
+      {showTranscribePanel && (
+        <>
+          <div className="tp-backdrop" onClick={() => setShowTranscribePanel(false)} />
+          <TranscribePanel
+            onClose={() => setShowTranscribePanel(false)}
+            onUseLyrics={(text) => {
+              setLyricsInput(text);
+            }}
+          />
+        </>
+      )}
+    </>
   );
 }
 

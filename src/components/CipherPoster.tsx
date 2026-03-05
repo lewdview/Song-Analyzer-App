@@ -5,6 +5,7 @@ import './CipherPoster.css';
 interface CipherPosterProps {
     analysis: CreativeEngineResult;
     artistLine: string;
+    songTitle?: string; // user-provided title; falls back to analysis.autoTitle
 }
 
 const CIPHER_CHARS = '*%$#@!~^&?≠§±∆∑π√Ω≈><|';
@@ -52,10 +53,12 @@ function useRevealWords(text: string) {
     return { words, reveal, reset };
 }
 
-export function CipherPoster({ analysis, artistLine }: CipherPosterProps) {
+export function CipherPoster({ analysis, artistLine, songTitle }: CipherPosterProps) {
+    const displayTitle = songTitle?.trim() || analysis.autoTitle;
     const titleLine = useRevealWords(analysis.posterTitle);
     const subLine = useRevealWords(analysis.posterSubline);
     const artistRev = useRevealWords(artistLine);
+    const sideTitleRev = useRevealWords(displayTitle);
     const [hintVisible, setHintVisible] = useState(true);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -159,10 +162,24 @@ export function CipherPoster({ analysis, artistLine }: CipherPosterProps) {
                 titleLine.reset();
                 subLine.reset();
                 artistRev.reset();
+                sideTitleRev.reset();
                 setHintVisible(true);
             }}>
                 ↺ re-encrypt
             </button>
+
+            {/* === Vertical side title (right edge) === */}
+            <div className="cp-side-title" aria-label={`Song title: ${displayTitle}`}>
+                {sideTitleRev.words.map((w, i) => (
+                    <span
+                        key={i}
+                        className={`cp-word${w.revealed ? ' cp-word--revealed cp-word--side' : ' cp-word--side-cipher'}`}
+                        onMouseEnter={() => { sideTitleRev.reveal(i); setHintVisible(false); }}
+                    >
+                        {w.revealed ? w.text : w.cipher}
+                    </span>
+                ))}
+            </div>
         </div>
     );
 }

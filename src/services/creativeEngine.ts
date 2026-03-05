@@ -55,6 +55,7 @@ export type CreativeEngineResult = {
   slangIndex: number;           // 0-100  (dialect / street-language authenticity)
   sentimentSharpness: number;   // 0-100  (how extreme the sentiment peaks are)
   lyricalFingerprint: string;   // short human-readable voice descriptor
+  autoTitle: string;            // evocative auto-generated song title
 };
 
 // ---------------------------------------------------------------------------
@@ -1027,6 +1028,72 @@ function calcLyricalFingerprint(
 }
 
 // ---------------------------------------------------------------------------
+// Auto-Title Generator
+// ---------------------------------------------------------------------------
+// Picks from a bank of 40 poetic title templates using mood / theme / keywords.
+const TITLE_TEMPLATES: ((m: string, t: string, k: string, e: string) => string)[] = [
+  (m, _t, _k, _e) => `The ${m} Hour`,
+  (_m, t, k, _e) => `Echo of ${toTitleCase(k)} ${t}`,
+  (m, t, _k, _e) => `${m} ${t}`,
+  (_m, _t, k, e) => `${toTitleCase(k)} Like ${toTitleCase(e)}`,
+  (m, _t, k, _e) => `${m} in ${toTitleCase(k)}`,
+  (_m, t, _k, e) => `${toTitleCase(e)} & ${t}`,
+  (m, _t, _k, e) => `${toTitleCase(e)} (${m} Version)`,
+  (_m, t, k, _e) => `Under the ${toTitleCase(k)} ${t}`,
+  (m, _t, k, _e) => `${toTitleCase(k)} Never ${m}`,
+  (_m, t, _k, e) => `${toTitleCase(e)} for the ${t}`,
+  (m, t, _k, _e) => `Last ${m} ${t}`,
+  (_m, _t, k, e) => `Ghost of ${toTitleCase(k)}`,
+  (m, _t, _k, _e) => `${m} State`,
+  (_m, t, k, _e) => `${toTitleCase(k)} ${t} Blues`,
+  (m, _t, k, _e) => `Soft ${m} ${toTitleCase(k)}`,
+  (_m, t, _k, e) => `${t} ${toTitleCase(e)}`,
+  (m, _t, _k, e) => `${toTitleCase(e)} of the ${m}`,
+  (_m, t, k, _e) => `Before the ${toTitleCase(k)}`,
+  (m, t, _k, _e) => `${m} ${t} Tonight`,
+  (_m, _t, k, e) => `${toTitleCase(e)} (${toTitleCase(k)} Cut)`,
+  (m, _t, k, _e) => `${toTitleCase(k)} & ${m} Dreams`,
+  (_m, t, _k, e) => `All This ${toTitleCase(e)}`,
+  (m, t, _k, _e) => `Where ${m} Meets ${t}`,
+  (_m, _t, k, e) => `${toTitleCase(k)} Forever`,
+  (m, _t, _k, _e) => `Nothing ${m}`,
+  (_m, t, k, _e) => `${toTitleCase(k)} City ${t}`,
+  (m, _t, k, _e) => `${toTitleCase(k)} on My ${m} Side`,
+  (_m, t, _k, e) => `${toTitleCase(e)} Type ${t}`,
+  (m, t, _k, _e) => `${t} ${m} Interlude`,
+  (_m, _t, k, e) => `Neon ${toTitleCase(k)}`,
+  (m, _t, _k, e) => `${toTitleCase(e)} Never ${m}`,
+  (_m, t, k, _e) => `${t} & ${toTitleCase(k)} Season`,
+  (m, _t, k, _e) => `${m} ${toTitleCase(k)} Ritual`,
+  (_m, t, _k, e) => `${toTitleCase(e)} on Repeat`,
+  (m, t, _k, _e) => `${m} ${t} Frequency`,
+  (_m, _t, k, e) => `Late ${toTitleCase(k)} ${toTitleCase(e)}`,
+  (m, _t, k, _e) => `${m} ${toTitleCase(k)} Drive`,
+  (_m, t, _k, e) => `${toTitleCase(e)} Without ${t}`,
+  (m, t, _k, _e) => `${m} Side of ${t}`,
+  (_m, _t, k, e) => `${toTitleCase(k)} ${toTitleCase(e)} Theory`,
+];
+
+function generateAutoTitle(
+  moodBreakdown: MoodBreakdownPoint[],
+  themes: string[],
+  topKeywords: string[],
+  dominantEmotion: string,
+  sentimentScore: number,
+): string {
+  const mood = moodBreakdown[0]?.mood || 'Reflective';
+  const theme = themes[0] || 'Identity';
+  const keyword = topKeywords[0] || (sentimentScore >= 0 ? 'light' : 'shadow');
+  const emotion = dominantEmotion || 'Neutral';
+
+  // Pick template deterministically based on mood+theme hash (so same input = same title)
+  const hash = Array.from(mood + theme + keyword).reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0);
+  const idx = Math.abs(hash) % TITLE_TEMPLATES.length;
+  const fn = TITLE_TEMPLATES[idx];
+  return fn ? fn(mood, theme, keyword, emotion) : `${mood} ${theme}`;
+}
+
+// ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 
@@ -1092,6 +1159,7 @@ export function analyzeCreativeLyrics(lyrics: string): CreativeEngineResult {
   const slangIndex = calcSlangIndex(tokens);
   const sentimentSharpness = calcSentimentSharpness(lines.length > 0 ? lines : [normalizedLyrics]);
   const lyricalFingerprint = calcLyricalFingerprint(narrativeArc, dominantEmotion, primaryMood, energyScore, slangIndex);
+  const autoTitle = generateAutoTitle(moodBreakdown, themes, topKeywords, dominantEmotion, sentimentScore);
 
   return {
     moodBreakdown,
@@ -1122,5 +1190,6 @@ export function analyzeCreativeLyrics(lyrics: string): CreativeEngineResult {
     slangIndex,
     sentimentSharpness,
     lyricalFingerprint,
+    autoTitle,
   };
 }

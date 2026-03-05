@@ -265,3 +265,51 @@
     border-color: rgba(200, 100, 255, 0.5);
     box-shadow: 0 0 14px rgba(160, 0, 255, 0.2);
 }
+
+/* ── Vertical side title (right edge) ── */
+.cp-side-title {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 2.4rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    gap: 0.3em;
+    z-index: 2;
+    padding: 0.75rem 0;
+    border-left: 1px solid rgba(160, 60, 255, 0.12);
+    background: rgba(40, 0, 80, 0.25);
+}
+
+.cp-word--side-cipher {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    color: rgba(140, 60, 255, 0.25);
+    letter-spacing: 0.05em;
+    cursor: crosshair;
+    display: inline;
+    transition: color 0.08s;
+    writing-mode: vertical-rl;
+}
+
+.cp-word--side-cipher:hover {
+    color: rgba(200, 100, 255, 0.6);
+    text-shadow: 0 0 8px rgba(180, 0, 255, 0.4);
+}
+
+.cp-word--side {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    writing-mode: vertical-rl;
+    text-shadow:
+        0 0 6px #fff,
+        0 0 16px var(--cp-glow, rgba(200, 80, 255, 0.8));
+}
