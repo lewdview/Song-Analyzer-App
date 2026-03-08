@@ -360,12 +360,20 @@ export default function App() {
   };
 
   // Filter analyses based on search and filters
-  const filteredAnalyses = analyses.filter(analysis => {
-    const matchesSearch = analysis.fileName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      analysis.lyrics.toLowerCase().includes(searchQuery.toLowerCase());
+  const normalizedSearch = (searchQuery ?? '').toLowerCase();
 
-    const matchesGenre = filterGenre === 'all' || analysis.genre.includes(filterGenre);
-    const matchesMood = filterMood === 'all' || analysis.mood.includes(filterMood);
+  const filteredAnalyses = analyses.filter(analysis => {
+    const fileName = typeof analysis.fileName === 'string' ? analysis.fileName : '';
+    const lyrics = typeof analysis.lyrics === 'string' ? analysis.lyrics : '';
+    const genres = Array.isArray(analysis.genre) ? analysis.genre : [];
+    const moods = Array.isArray(analysis.mood) ? analysis.mood : [];
+
+    const matchesSearch = normalizedSearch.length === 0 ||
+      fileName.toLowerCase().includes(normalizedSearch) ||
+      lyrics.toLowerCase().includes(normalizedSearch);
+
+    const matchesGenre = filterGenre === 'all' || genres.includes(filterGenre);
+    const matchesMood = filterMood === 'all' || moods.includes(filterMood);
 
     return matchesSearch && matchesGenre && matchesMood;
   });

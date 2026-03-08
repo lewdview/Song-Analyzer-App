@@ -203,26 +203,33 @@ export const selectFilters = (state: AnalysisStore) => state.filters;
 
 export const selectFilteredAnalyses = (state: AnalysisStore) => {
   const { analyses, filters } = state;
+  const normalizedSearch = (filters.searchQuery ?? '').toLowerCase();
   
   return analyses.filter((analysis) => {
+    const fileName = typeof analysis.fileName === 'string' ? analysis.fileName : '';
+    const lyrics = typeof analysis.lyrics === 'string' ? analysis.lyrics : '';
+    const genres = Array.isArray(analysis.genre) ? analysis.genre : [];
+    const moods = Array.isArray(analysis.mood) ? analysis.mood : [];
+
     const matchesSearch =
-      analysis.fileName.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
-      analysis.lyrics.toLowerCase().includes(filters.searchQuery.toLowerCase());
+      normalizedSearch.length === 0 ||
+      fileName.toLowerCase().includes(normalizedSearch) ||
+      lyrics.toLowerCase().includes(normalizedSearch);
     
     const matchesGenre =
-      filters.genre === 'all' || analysis.genre.includes(filters.genre);
+      filters.genre === 'all' || genres.includes(filters.genre);
     
     const matchesMood =
-      filters.mood === 'all' || analysis.mood.includes(filters.mood);
+      filters.mood === 'all' || moods.includes(filters.mood);
     
     return matchesSearch && matchesGenre && matchesMood;
   });
 };
 
 export const selectAllGenres = (state: AnalysisStore) => {
-  return Array.from(new Set(state.analyses.flatMap((a) => a.genre)));
+  return Array.from(new Set(state.analyses.flatMap((a) => (Array.isArray(a.genre) ? a.genre : []))));
 };
 
 export const selectAllMoods = (state: AnalysisStore) => {
-  return Array.from(new Set(state.analyses.flatMap((a) => a.mood)));
+  return Array.from(new Set(state.analyses.flatMap((a) => (Array.isArray(a.mood) ? a.mood : []))));
 };

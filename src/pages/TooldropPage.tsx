@@ -66,6 +66,65 @@ function formatDateTime(value: string): string {
   return date.toLocaleString();
 }
 
+type Eip1193RequestArgs = {
+  method: string;
+  params?: unknown[];
+};
+
+type Eip1193Wallet = {
+  request?: (args: Eip1193RequestArgs) => Promise<unknown>;
+};
+
+const BASE_MAINNET_CHAIN_ID = 8453;
+const BASE_MAINNET_CHAIN_HEX = '0x2105';
+
+async function ensureBaseMainnet(wallet: Eip1193Wallet): Promise<void> {
+  if (!wallet.request) {
+    throw new Error('No wallet request method available.');
+  }
+
+  const chainIdRaw = await wallet.request({ method: 'eth_chainId' });
+  const normalizedChainId = typeof chainIdRaw === 'string' ? chainIdRaw.toLowerCase() : '';
+
+  if (normalizedChainId === BASE_MAINNET_CHAIN_HEX) {
+    return;
+  }
+
+  try {
+    await wallet.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: BASE_MAINNET_CHAIN_HEX }],
+    });
+  } catch (switchError) {
+    const errorCode =
+      typeof switchError === 'object' && switchError && 'code' in switchError
+        ? (switchError as { code?: number }).code
+        : undefined;
+
+    if (errorCode !== 4902) {
+      throw switchError;
+    }
+
+    await wallet.request({
+      method: 'wallet_addEthereumChain',
+      params: [
+        {
+          chainId: BASE_MAINNET_CHAIN_HEX,
+          chainName: 'Base',
+          nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+          rpcUrls: ['https://mainnet.base.org'],
+          blockExplorerUrls: ['https://basescan.org'],
+        },
+      ],
+    });
+
+    await wallet.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: BASE_MAINNET_CHAIN_HEX }],
+    });
+  }
+}
+
 export function TooldropPage() {
   const [showCipherIntro, setShowCipherIntro] = useState(true);
   const [showTranscribePanel, setShowTranscribePanel] = useState(false);
@@ -300,9 +359,7 @@ export function TooldropPage() {
   };
 
   const handleBaseWalletSignIn = async () => {
-    const wallet = (window as { ethereum?: unknown }).ethereum as {
-      request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-    } | undefined;
+    const wallet = (window as { ethereum?: unknown }).ethereum as Eip1193Wallet | undefined;
 
     if (!wallet?.request) {
       setAccountMessage('No Base-compatible wallet detected.');
@@ -310,21 +367,32 @@ export function TooldropPage() {
     }
 
     setIsSigningIn(true);
-    const { error } = await sharedSupabase.auth.signInWithWeb3({
-      chain: 'ethereum',
-      wallet: wallet as never,
-      statement: 'Sign in to th3scr1b3 on Base.',
-      options: {
-        url: window.location.origin,
-        signInWithEthereum: {
-          chainId: 8453,
-        },
-      },
-    });
-    setIsSigningIn(false);
+    try {
+      await ensureBaseMainnet(wallet);
 
-    if (error) {
-      setAccountMessage(error.message);
+      const { error } = await sharedSupabase.auth.signInWithWeb3({
+        chain: 'ethereum',
+        wallet: wallet as never,
+        statement: 'Sign in to th3scr1b3 on Base.',
+        options: {
+          url: window.location.origin,
+          signInWithEthereum: {
+            chainId: BASE_MAINNET_CHAIN_ID,
+          },
+        },
+      });
+
+      if (error) {
+        setAccountMessage(error.message);
+      }
+    } catch (error) {
+      setAccountMessage(
+        error instanceof Error
+          ? `Base network check failed: ${error.message}`
+          : 'Base network check failed.'
+      );
+    } finally {
+      setIsSigningIn(false);
     }
   };
 

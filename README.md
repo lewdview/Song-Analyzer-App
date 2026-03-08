@@ -72,6 +72,17 @@ Use **Deployment Settings** on the Home page to switch behavior without code edi
 
 Settings persist in browser localStorage.
 
+## Farcaster / Base Mini App
+
+Mini app scaffolding is included:
+- `index.html` includes `fc:miniapp` + `fc:frame` metadata
+- `public/.well-known/farcaster.json`
+- `public/miniapp-icon.svg`, `public/miniapp-preview.svg`, `public/miniapp-splash.svg`
+
+Before publishing, update `public/.well-known/farcaster.json`:
+1. Replace `https://YOUR_MINI_APP_DOMAIN` with your live HTTPS domain.
+2. Replace `accountAssociation` placeholder values with your signed Farcaster association values.
+
 ## Environment Variables
 
 Use `.env.whisper.example` as the source of truth. Common keys:

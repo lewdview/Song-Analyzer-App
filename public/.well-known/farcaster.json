@@ -1,0 +1,22 @@
+{
+  "accountAssociation": {
+    "header": "REPLACE_WITH_SIGNED_HEADER",
+    "payload": "REPLACE_WITH_SIGNED_PAYLOAD",
+    "signature": "REPLACE_WITH_SIGNED_SIGNATURE"
+  },
+  "frame": {
+    "version": "1",
+    "name": "Tooldrop Creative Engine",
+    "subtitle": "Lyrics analyzer on Base",
+    "description": "Analyze song lyrics and save your creative history.",
+    "iconUrl": "https://YOUR_MINI_APP_DOMAIN/miniapp-icon.svg",
+    "homeUrl": "https://YOUR_MINI_APP_DOMAIN/",
+    "imageUrl": "https://YOUR_MINI_APP_DOMAIN/miniapp-preview.svg",
+    "buttonTitle": "Analyze Lyrics",
+    "splashImageUrl": "https://YOUR_MINI_APP_DOMAIN/miniapp-splash.svg",
+    "splashBackgroundColor": "#020617",
+    "primaryCategory": "music",
+    "tags": ["music", "lyrics", "creative", "base"]
+  },
+  "triggers": []
+}

@@ -178,11 +178,22 @@ export function useSupabaseAPI() {
       log.info(`Loaded ${data.count} analyses`);
       
       // For loaded analyses, use storedAudioUrl as audioUrl for playback
-      const analysesWithPlayback = data.analyses.map((analysis) => ({
-        ...analysis,
-        // If there's a stored audio URL, use it for playback
-        audioUrl: analysis.storedAudioUrl || analysis.audioUrl,
-      }));
+      const analysesWithPlayback = data.analyses.map((analysis, index) => {
+        const fileName =
+          typeof analysis.fileName === 'string' && analysis.fileName.trim().length > 0
+            ? analysis.fileName
+            : `unknown-track-${index + 1}.mp3`;
+
+        return {
+          ...analysis,
+          fileName,
+          lyrics: typeof analysis.lyrics === 'string' ? analysis.lyrics : '',
+          genre: Array.isArray(analysis.genre) ? analysis.genre.filter((g): g is string => typeof g === 'string') : [],
+          mood: Array.isArray(analysis.mood) ? analysis.mood.filter((m): m is string => typeof m === 'string') : [],
+          // If there's a stored audio URL, use it for playback
+          audioUrl: analysis.storedAudioUrl || analysis.audioUrl,
+        };
+      });
       
       return analysesWithPlayback;
     } catch (err) {
