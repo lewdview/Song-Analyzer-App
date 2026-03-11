@@ -1118,27 +1118,35 @@ function pick<T>(pool: T[], hash: number): T {
 
 // Graduated adjective banks
 const ENERGY_ADJ: Record<string, string[]> = {
-  high: ['volcanic', 'electric', 'blazing', 'relentless', 'fiery', 'surging'],
-  mid: ['steady-burning', 'smoldering', 'warm', 'measured', 'balanced'],
-  low: ['whisper-quiet', 'subdued', 'restrained', 'hushed', 'muted'],
+  high:  ['volcanic', 'electric', 'blazing', 'relentless', 'fiery', 'surging', 'combustive', 'uncontainable', 'kinetic', 'detonating'],
+  mid:   ['steady-burning', 'smoldering', 'warm', 'measured', 'balanced', 'simmering', 'even-keeled', 'tempered', 'humming'],
+  low:   ['whisper-quiet', 'subdued', 'restrained', 'hushed', 'muted', 'frozen-still', 'glassy', 'anesthetized', 'dormant'],
 };
 
 const FLOW_ADJ: Record<string, string[]> = {
-  high: ['intricate', 'labyrinthine', 'syncopated', 'complex', 'winding'],
-  mid: ['steady', 'rhythmic', 'flowing', 'cadenced', 'natural'],
-  low: ['staccato', 'direct', 'blunt', 'sparse', 'stripped-back'],
+  high:  ['intricate', 'labyrinthine', 'syncopated', 'complex', 'winding', 'serpentine', 'polyrhythmic', 'kaleidoscopic', 'dizzying'],
+  mid:   ['steady', 'rhythmic', 'flowing', 'cadenced', 'natural', 'conversational', 'unhurried', 'even', 'melodic'],
+  low:   ['staccato', 'direct', 'blunt', 'sparse', 'stripped-back', 'telegraphic', 'fragmentary', 'clipped', 'bare-bones'],
 };
 
 const IMAGERY_ADJ: Record<string, string[]> = {
-  high: ['richly figurative', 'lush with metaphor', 'deeply symbolic', 'vividly painted'],
-  low: ['plain-spoken', 'literal', 'unadorned', 'stark', 'grounded'],
+  high:  ['richly figurative', 'lush with metaphor', 'deeply symbolic', 'vividly painted', 'cinematically layered', 'dripping with allegory', 'expressionistic', 'fever-dream vivid'],
+  mid:   ['selectively visual', 'intermittently poetic', 'grounded but evocative', 'modestly figurative'],
+  low:   ['plain-spoken', 'literal', 'unadorned', 'stark', 'grounded', 'documentary-like', 'matter-of-fact', 'bare'],
 };
 
 const ARC_ADJ: Record<string, string[]> = {
-  build: ['ascending', 'escalating', 'rising', 'crescendo-like'],
-  decline: ['descending', 'darkening', 'fading', 'diminishing'],
-  wave: ['fluctuating', 'tidal', 'oscillating', 'push-and-pull'],
-  steady: ['consistent', 'unwavering', 'level', 'sustained'],
+  build:   ['ascending', 'escalating', 'rising', 'crescendo-like', 'gathering momentum', 'snowballing', 'intensifying'],
+  decline: ['descending', 'darkening', 'fading', 'diminishing', 'unwinding', 'dissolving', 'erosive'],
+  wave:    ['fluctuating', 'tidal', 'oscillating', 'push-and-pull', 'pendular', 'cyclical', 'ebb-and-flow'],
+  steady:  ['consistent', 'unwavering', 'level', 'sustained', 'plateaued', 'monolithic', 'linear'],
+};
+
+const MOOD_ADJ: Record<string, string[]> = {
+  positive: ['luminous', 'euphoric', 'hopeful', 'radiant', 'triumphant', 'golden', 'uplifting', 'sun-soaked'],
+  negative: ['shadowed', 'turbulent', 'aching', 'storm-dark', 'bruised', 'nocturnal', 'wounded', 'heavy-lidded'],
+  neutral:  ['contemplative', 'reflective', 'detached', 'observational', 'still', 'measured', 'removed'],
+  mixed:    ['bittersweet', 'paradoxical', 'dualistic', 'contradictory', 'ambivalent', 'kaleidoscopic', 'tangled'],
 };
 
 function generateInterpretation(
@@ -1170,8 +1178,10 @@ function generateInterpretation(
   else themeStr = 'introspection and self-expression';
 
   const mood = primaryMood.toLowerCase();
+  const moodBand = sentimentLabel === 'positive' ? 'positive' : sentimentLabel === 'negative' ? 'negative' : sentimentLabel === 'mixed' ? 'mixed' : 'neutral';
+  const mAdj = pick(MOOD_ADJ[moodBand]!, h + 5);
 
-  // ── Sentence 1: Theme & Mood (pool of 6) ──
+  // ── Sentence 1: Theme & Mood (pool of 12) ──
   const s1Pool = [
     `At its core, this piece navigates themes of ${themeStr}, steeped in a ${mood} atmosphere.`,
     `The lyrics orbit around ${themeStr}, channeling a distinctly ${mood} sensibility throughout.`,
@@ -1179,9 +1189,15 @@ function generateInterpretation(
     `This work is a meditation on ${themeStr}, cast through a ${mood} lens.`,
     `Themes of ${themeStr} surface repeatedly, woven together by a ${mood} thread.`,
     `Through the language of ${themeStr}, a ${mood} narrative takes shape across the verses.`,
+    `The piece opens a window into ${themeStr}, bathed in a ${mAdj} tone throughout.`,
+    `${themeStr} form the backbone of this work — a ${mAdj} exploration of familiar territory made personal.`,
+    `These lyrics dwell in the territory of ${themeStr}, rendered with a ${mood}, almost ${mAdj} quality.`,
+    `A world built on ${themeStr} unfolds here, its atmosphere unmistakably ${mood}.`,
+    `The writer wrestles with ${themeStr}, and the result is something deeply ${mAdj}.`,
+    `From the first line, the piece commits to ${themeStr}, sustaining a ${mood} gravity that never breaks.`,
   ];
 
-  // ── Sentence 2: Emotion & Sentiment (pool of 6) ──
+  // ── Sentence 2: Emotion & Sentiment (pool of 12) ──
   const eBand = energyScore > 65 ? 'high' : energyScore < 35 ? 'low' : 'mid';
   const eAdj = pick(ENERGY_ADJ[eBand]!, h + 1);
   const emotion = dominantEmotion.toLowerCase();
@@ -1193,18 +1209,30 @@ function generateInterpretation(
     `Emotionally, the piece burns ${sentimentLabel} — ${eAdj} in force, rooted in ${emotion}.`,
     `A ${sentimentLabel} disposition permeates the verses, fueled by ${eAdj} tension and sustained ${emotion}.`,
     `The tonal center is unmistakably ${sentimentLabel}: ${eAdj}, charged, and shaped by ${emotion}.`,
+    `What emerges is a ${sentimentLabel} emotional field — ${eAdj} in its delivery, with ${emotion} as the constant underpinning.`,
+    `The sentiment skews ${sentimentLabel}, carried on a ${eAdj} current where ${emotion} is never far from the surface.`,
+    `Underneath the words, a ${eAdj} emotional engine drives the piece toward ${emotion}, landing firmly in ${sentimentLabel} territory.`,
+    `The feeling here is ${sentimentLabel} at its foundation, but the ${eAdj} delivery gives it edges — the dominant note being ${emotion}.`,
+    `It reads as ${sentimentLabel}, paced by a ${eAdj} heartbeat, with ${emotion} threading through every stanza.`,
+    `${emotion} sits at the emotional center, radiating outward through ${eAdj}, distinctly ${sentimentLabel} verse.`,
   ];
 
-  // ── Sentence 3: Style & Structure (pool of 6) ──
+  // ── Sentence 3: Style & Structure (pool of 12) ──
   const fBand = flowScore > 70 ? 'high' : flowScore < 40 ? 'low' : 'mid';
   const fAdj = pick(FLOW_ADJ[fBand]!, h + 2);
+  const iMidBand = imageryDensity > 50 ? 'high' : imageryDensity > 20 ? 'mid' : 'low';
   const iBand = metaphorDensity > 15 ? 'high' : 'low';
   const iAdj = pick(IMAGERY_ADJ[iBand]!, h + 3);
-  const slangPhrase = slangIndex > 20
-    ? 'a strong vernacular authenticity'
-    : slangIndex > 8
-      ? 'touches of street-level dialect'
-      : 'a polished, literary register';
+  const iAdj2 = pick(IMAGERY_ADJ[iMidBand] || IMAGERY_ADJ.low!, h + 7);
+  const slangPhrase = slangIndex > 30
+    ? 'a thick vernacular authenticity that roots the piece in street-level truth'
+    : slangIndex > 20
+      ? 'a strong vernacular authenticity'
+      : slangIndex > 12
+        ? 'touches of street-level dialect'
+        : slangIndex > 5
+          ? 'an occasional colloquial edge'
+          : 'a polished, literary register';
 
   const s3Pool = [
     `Stylistically, the flow is ${fAdj}, the imagery ${iAdj}, and the voice carries ${slangPhrase}.`,
@@ -1213,9 +1241,15 @@ function generateInterpretation(
     `The craft is ${fAdj} in meter and ${iAdj} in texture, grounded by ${slangPhrase}.`,
     `With ${fAdj} pacing and ${iAdj} wordplay, the piece maintains ${slangPhrase}.`,
     `Structure-wise, the bars run ${fAdj}, layered with ${iAdj} detail and ${slangPhrase}.`,
+    `The voice is ${fAdj} and deliberate, with the imagery landing ${iAdj2} — and the register leans into ${slangPhrase}.`,
+    `Line by line, the pacing feels ${fAdj}, the metaphors ${iAdj}, and the diction reveals ${slangPhrase}.`,
+    `There's a ${fAdj} architecture to the verses: ${iAdj} in surface, ${slangPhrase} in character.`,
+    `The lyrical design is ${fAdj}, mixing ${iAdj} imagery with ${slangPhrase} throughout.`,
+    `Compositionally, the movement is ${fAdj}, the language ${iAdj}, the tonal register? ${slangPhrase}.`,
+    `These lines are ${fAdj} in their delivery, ${iAdj} in construction, and marked by ${slangPhrase}.`,
   ];
 
-  // ── Sentence 4: Conclusion / Arc (pool of 6) ──
+  // ── Sentence 4: Conclusion / Arc (pool of 12) ──
   const arcAdj = pick(ARC_ADJ[narrativeArc] || ARC_ADJ.steady!, h + 4);
   const fp = fingerprint.toLowerCase();
 
@@ -1226,6 +1260,12 @@ function generateInterpretation(
     `From start to finish the sentiment moves in an ${arcAdj} pattern, distilling into ${fp}.`,
     `The narrative builds ${arcAdj}ly, sealing the experience as one of ${fp}.`,
     `Its emotional shape is ${arcAdj}, a progression that culminates in the essence of ${fp}.`,
+    `When the last line lands, the ${arcAdj} arc has delivered its verdict: this is a work of ${fp}.`,
+    `Step by step, the ${arcAdj} emotional motion resolves into something best described as ${fp}.`,
+    `The ${arcAdj} trajectory gives the piece its gravitational pull — and the final orbit settles at ${fp}.`,
+    `By the close, the ${arcAdj} journey has etched a singular feeling into the listener: ${fp}.`,
+    `The piece doesn't arrive — it ${arcAdj}ly unfolds, revealing itself as a study in ${fp}.`,
+    `What remains after the final word is the imprint of an ${arcAdj} voyage through ${fp}.`,
   ];
 
   const s1 = pick(s1Pool, h);
@@ -1241,6 +1281,8 @@ function generateInterpretation(
       'A pronounced rhyme scheme ties the lines together with satisfying sonic echoes.',
       'The end-rhymes are tightly woven, lending a musical cohesion to the verses.',
       'Rhyme is a structural pillar here, stitching each couplet into a larger tapestry.',
+      'The rhyme work is precise and intentional — each paired ending reinforces the song\'s architecture.',
+      'Sonic patterning through rhyme lends the piece a hypnotic, cyclical quality.',
     ], h + 40));
   }
 
@@ -1249,6 +1291,8 @@ function generateInterpretation(
       'A recurring hook anchors the piece, acting as an emotional refrain the listener can hold onto.',
       'The chorus functions as a gravitational center, pulling the surrounding verses into orbit.',
       'Repetition of a central hook gives the piece an anthemic, singable quality.',
+      'The hook returns like a mantra — each iteration deepening its emotional weight.',
+      'A chorus line recurs with the insistence of a heartbeat, binding the sections together.',
     ], h + 50));
   }
 
@@ -1257,6 +1301,8 @@ function generateInterpretation(
       'The emotional palette is remarkably complex — multiple feelings coexist and compete across the lines.',
       'Rather than a single feeling, the lyrics juggle several emotional currents simultaneously.',
       'Emotional complexity runs high, with layers of contradictory feeling stacked throughout.',
+      'The piece resists emotional simplicity — it holds tension, warmth, and melancholy in the same breath.',
+      'There is a tangled emotional richness here, as if the writer is processing several feelings at once.',
     ], h + 60));
   }
 
@@ -1264,15 +1310,48 @@ function generateInterpretation(
     bonuses.push(pick([
       'Concrete sensory imagery dominates the language, painting vivid scenes in the mind.',
       'The writing is saturated with visual and tactile detail — colors, textures, and landscapes.',
+      'Every verse is loaded with images: you can see, hear, and almost touch the world being described.',
+      'The imagery is cinematic — the listener doesn\'t just hear the song, they see it.',
     ], h + 70));
   }
 
   if (topKeywords.length >= 3) {
-    bonuses.push(`Key motifs — ${topKeywords.slice(0, 3).join(', ')} — recur like thematic anchors.`);
+    bonuses.push(pick([
+      `Key motifs — ${topKeywords.slice(0, 3).join(', ')} — recur like thematic anchors.`,
+      `The words ${topKeywords.slice(0, 3).join(', ')} surface repeatedly, forming a lexical fingerprint.`,
+      `Recurring motifs (${topKeywords.slice(0, 3).join(', ')}) lend the piece a gravitational vocabulary.`,
+    ], h + 80));
   }
 
-  // Cap bonuses at 2 to keep the paragraph tight
-  const selectedBonuses = bonuses.slice(0, 2);
+  if (repetitionScore > 40) {
+    bonuses.push(pick([
+      'Heavy repetition gives the piece a ritualistic, almost incantatory quality — lines return like prayers.',
+      'The deliberate use of repetition creates a hypnotic spiral, pulling the listener deeper with each pass.',
+      'Lines echo and repeat with mantra-like persistence, turning the piece into a meditation rather than a statement.',
+      'The writing leans into repetition as a structural choice — each return of a phrase adds weight rather than redundancy.',
+    ], h + 90));
+  }
+
+  if (metaphorDensity > 30) {
+    bonuses.push(pick([
+      'The figurative language is dense — metaphors and similes stack like geological layers.',
+      'Nearly every line carries a double meaning, lending the work a poetic inscrutability.',
+      'Metaphor isn\'t decoration here — it\'s the primary language, and the literal meaning hides behind it.',
+    ], h + 100));
+  }
+
+  // Sentiment sharpness bonus
+  const sentimentSharpness = Math.abs(energyScore - 50) + emotionalComplexity * 0.3;
+  if (sentimentSharpness > 55) {
+    bonuses.push(pick([
+      'The emotional peaks are razor-sharp — the piece commits fully to its extremes.',
+      'There is no middle ground in the feeling here; the sentiment cuts deep and deliberately.',
+      'The intensity of feeling is striking — this is writing that refuses to be lukewarm.',
+    ], h + 110));
+  }
+
+  // Cap bonuses at 3 to keep the paragraph rich but not bloated
+  const selectedBonuses = bonuses.slice(0, 3);
 
   return [s1, s2, s3, ...selectedBonuses, s4].join(' ');
 }
