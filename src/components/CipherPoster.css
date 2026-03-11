@@ -241,6 +241,39 @@
     letter-spacing: 0.05em;
 }
 
+/* ── Interpretation Paragraph ── */
+.cp-interpretation {
+    margin-top: 1rem;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: rgba(200, 180, 255, 0.85);
+    max-width: 85%;
+}
+
+.cp-word--cipher-body {
+    font-family: 'Share Tech Mono', monospace;
+    color: rgba(160, 80, 255, 0.22);
+    letter-spacing: 0.02em;
+    cursor: crosshair;
+    transition: color 0.05s;
+    display: inline;
+}
+
+.cp-word--cipher-body:hover {
+    color: rgba(220, 100, 255, 0.7);
+    text-shadow: 0 0 10px rgba(200, 80, 255, 0.5);
+}
+
+.cp-word--revealed-body {
+    font-family: var(--font-body, system-ui, -apple-system, sans-serif);
+    font-weight: 400;
+    color: #e0d0ff;
+    letter-spacing: normal;
+    animation: cpWordReveal 0.4s cubic-bezier(0.2, 0, 0.1, 1) forwards;
+    cursor: default;
+    text-shadow: 0 0 8px rgba(160, 80, 255, 0.4);
+}
+
 /* ── Re-encrypt button ── */
 .cp-reset-btn {
     position: absolute;

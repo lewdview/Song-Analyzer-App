@@ -45,7 +45,8 @@ const looksLikeCreativeResult = (value: unknown): value is CreativeEngineResult 
     typeof record.emotionScore === 'number' &&
     Array.isArray(record.heatmap) &&
     typeof record.posterTitle === 'string' &&
-    typeof record.posterSubline === 'string'
+    typeof record.posterSubline === 'string' &&
+    (record.interpretation === undefined || typeof record.interpretation === 'string')
   );
 };
 

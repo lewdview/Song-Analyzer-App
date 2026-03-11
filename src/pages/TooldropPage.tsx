@@ -16,6 +16,9 @@ import {
 } from '@/services/creativeHistory';
 import { IntroScreen } from '@/components/IntroScreen';
 import { CipherPoster } from '@/components/CipherPoster';
+import { HoloPoster } from '@/components/HoloPoster';
+import { BrutalistPoster } from '@/components/BrutalistPoster';
+import { PosterSwitcher, type PosterVariantId } from '@/components/PosterVariants';
 import { TranscribePanel } from '@/components/TranscribePanel';
 import './tooldrop.css';
 
@@ -149,6 +152,7 @@ export function TooldropPage() {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [showSignInOffer, setShowSignInOffer] = useState(false);
   const [introReady, setIntroReady] = useState(false);
+  const [posterVariant, setPosterVariant] = useState<PosterVariantId>('cipher');
   const signInOfferRef = useRef<HTMLElement | null>(null);
   const isSignedIn = Boolean(signedInUserId && accessToken);
 
@@ -934,7 +938,10 @@ export function TooldropPage() {
 
               <article className="td-card td-card--panel">
                 <h2 className="td-title td-title--small">Poster Preview</h2>
-                <CipherPoster analysis={analysis} artistLine={posterArtistLine} />
+                <PosterSwitcher current={posterVariant} onChange={setPosterVariant} />
+                {posterVariant === 'cipher' && <CipherPoster analysis={analysis} artistLine={posterArtistLine} />}
+                {posterVariant === 'holo' && <HoloPoster analysis={analysis} artistLine={posterArtistLine} />}
+                {posterVariant === 'brutalist' && <BrutalistPoster analysis={analysis} artistLine={posterArtistLine} />}
               </article>
             </section>
           )}

@@ -56,6 +56,7 @@ export type CreativeEngineResult = {
   sentimentSharpness: number;   // 0-100  (how extreme the sentiment peaks are)
   lyricalFingerprint: string;   // short human-readable voice descriptor
   autoTitle: string;            // evocative auto-generated song title
+  interpretation?: string; // Optional for backward compatibility with older v3 records
 };
 
 // ---------------------------------------------------------------------------
@@ -1094,6 +1095,189 @@ function generateAutoTitle(
 }
 
 // ---------------------------------------------------------------------------
+// Interpretation Generator (Storytelling Layer) — v2
+// ---------------------------------------------------------------------------
+// Builds a cohesive Sonoteller-style paragraph summarizing the lyric analysis.
+// Uses sentence pools, graduated adjective banks, and conditional bonus
+// sentences. Selection is deterministic via a simple hash of the analysis data
+// so the same lyrics always produce the same story.
+
+/** Simple numeric hash for deterministic pool selection */
+function storyHash(...values: (string | number)[]): number {
+  let h = 0;
+  const str = values.join('|');
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+function pick<T>(pool: T[], hash: number): T {
+  return pool[hash % pool.length]!;
+}
+
+// Graduated adjective banks
+const ENERGY_ADJ: Record<string, string[]> = {
+  high: ['volcanic', 'electric', 'blazing', 'relentless', 'fiery', 'surging'],
+  mid: ['steady-burning', 'smoldering', 'warm', 'measured', 'balanced'],
+  low: ['whisper-quiet', 'subdued', 'restrained', 'hushed', 'muted'],
+};
+
+const FLOW_ADJ: Record<string, string[]> = {
+  high: ['intricate', 'labyrinthine', 'syncopated', 'complex', 'winding'],
+  mid: ['steady', 'rhythmic', 'flowing', 'cadenced', 'natural'],
+  low: ['staccato', 'direct', 'blunt', 'sparse', 'stripped-back'],
+};
+
+const IMAGERY_ADJ: Record<string, string[]> = {
+  high: ['richly figurative', 'lush with metaphor', 'deeply symbolic', 'vividly painted'],
+  low: ['plain-spoken', 'literal', 'unadorned', 'stark', 'grounded'],
+};
+
+const ARC_ADJ: Record<string, string[]> = {
+  build: ['ascending', 'escalating', 'rising', 'crescendo-like'],
+  decline: ['descending', 'darkening', 'fading', 'diminishing'],
+  wave: ['fluctuating', 'tidal', 'oscillating', 'push-and-pull'],
+  steady: ['consistent', 'unwavering', 'level', 'sustained'],
+};
+
+function generateInterpretation(
+  themes: string[],
+  primaryMood: string,
+  sentimentLabel: string,
+  energyScore: number,
+  dominantEmotion: string,
+  flowScore: number,
+  metaphorDensity: number,
+  slangIndex: number,
+  narrativeArc: string,
+  fingerprint: string,
+  // v2 additional context
+  rhymeScore: number = 0,
+  chorusLines: string[] = [],
+  repetitionScore: number = 0,
+  imageryDensity: number = 0,
+  topKeywords: string[] = [],
+  emotionalComplexity: number = 0,
+): string {
+  const h = storyHash(primaryMood, sentimentLabel, dominantEmotion, energyScore, flowScore, narrativeArc);
+
+  // ── Theme string ──
+  let themeStr: string;
+  if (themes.length >= 3) themeStr = `${themes[0]}, ${themes[1]}, and ${themes[2]}`;
+  else if (themes.length === 2) themeStr = `${themes[0]} and ${themes[1]}`;
+  else if (themes.length === 1) themeStr = themes[0]!;
+  else themeStr = 'introspection and self-expression';
+
+  const mood = primaryMood.toLowerCase();
+
+  // ── Sentence 1: Theme & Mood (pool of 6) ──
+  const s1Pool = [
+    `At its core, this piece navigates themes of ${themeStr}, steeped in a ${mood} atmosphere.`,
+    `The lyrics orbit around ${themeStr}, channeling a distinctly ${mood} sensibility throughout.`,
+    `Rooted in ${themeStr}, the writing radiates a ${mood} energy that colors every line.`,
+    `This work is a meditation on ${themeStr}, cast through a ${mood} lens.`,
+    `Themes of ${themeStr} surface repeatedly, woven together by a ${mood} thread.`,
+    `Through the language of ${themeStr}, a ${mood} narrative takes shape across the verses.`,
+  ];
+
+  // ── Sentence 2: Emotion & Sentiment (pool of 6) ──
+  const eBand = energyScore > 65 ? 'high' : energyScore < 35 ? 'low' : 'mid';
+  const eAdj = pick(ENERGY_ADJ[eBand]!, h + 1);
+  const emotion = dominantEmotion.toLowerCase();
+
+  const s2Pool = [
+    `The emotional register leans ${sentimentLabel}, propelled by ${eAdj} energy and anchored in ${emotion}.`,
+    `Sentiment runs ${sentimentLabel} here, with a ${eAdj} pulse driven by an undercurrent of ${emotion}.`,
+    `There is a ${sentimentLabel} emotional gravity, amplified by ${eAdj} intensity and a deep well of ${emotion}.`,
+    `Emotionally, the piece burns ${sentimentLabel} — ${eAdj} in force, rooted in ${emotion}.`,
+    `A ${sentimentLabel} disposition permeates the verses, fueled by ${eAdj} tension and sustained ${emotion}.`,
+    `The tonal center is unmistakably ${sentimentLabel}: ${eAdj}, charged, and shaped by ${emotion}.`,
+  ];
+
+  // ── Sentence 3: Style & Structure (pool of 6) ──
+  const fBand = flowScore > 70 ? 'high' : flowScore < 40 ? 'low' : 'mid';
+  const fAdj = pick(FLOW_ADJ[fBand]!, h + 2);
+  const iBand = metaphorDensity > 15 ? 'high' : 'low';
+  const iAdj = pick(IMAGERY_ADJ[iBand]!, h + 3);
+  const slangPhrase = slangIndex > 20
+    ? 'a strong vernacular authenticity'
+    : slangIndex > 8
+      ? 'touches of street-level dialect'
+      : 'a polished, literary register';
+
+  const s3Pool = [
+    `Stylistically, the flow is ${fAdj}, the imagery ${iAdj}, and the voice carries ${slangPhrase}.`,
+    `The writing moves with a ${fAdj} rhythm, dressed in ${iAdj} language alongside ${slangPhrase}.`,
+    `Lyrically, it delivers a ${fAdj} cadence enriched by ${iAdj} expression and ${slangPhrase}.`,
+    `The craft is ${fAdj} in meter and ${iAdj} in texture, grounded by ${slangPhrase}.`,
+    `With ${fAdj} pacing and ${iAdj} wordplay, the piece maintains ${slangPhrase}.`,
+    `Structure-wise, the bars run ${fAdj}, layered with ${iAdj} detail and ${slangPhrase}.`,
+  ];
+
+  // ── Sentence 4: Conclusion / Arc (pool of 6) ──
+  const arcAdj = pick(ARC_ADJ[narrativeArc] || ARC_ADJ.steady!, h + 4);
+  const fp = fingerprint.toLowerCase();
+
+  const s4Pool = [
+    `The emotional arc is ${arcAdj}, ultimately leaving the listener with an impression of ${fp}.`,
+    `Taken as a whole, the trajectory is ${arcAdj} — a journey that resolves into ${fp}.`,
+    `Over its course, the piece traces an ${arcAdj} arc, crystallizing into ${fp}.`,
+    `From start to finish the sentiment moves in an ${arcAdj} pattern, distilling into ${fp}.`,
+    `The narrative builds ${arcAdj}ly, sealing the experience as one of ${fp}.`,
+    `Its emotional shape is ${arcAdj}, a progression that culminates in the essence of ${fp}.`,
+  ];
+
+  const s1 = pick(s1Pool, h);
+  const s2 = pick(s2Pool, h + 10);
+  const s3 = pick(s3Pool, h + 20);
+  const s4 = pick(s4Pool, h + 30);
+
+  // ── Conditional bonus sentences ──
+  const bonuses: string[] = [];
+
+  if (rhymeScore > 50) {
+    bonuses.push(pick([
+      'A pronounced rhyme scheme ties the lines together with satisfying sonic echoes.',
+      'The end-rhymes are tightly woven, lending a musical cohesion to the verses.',
+      'Rhyme is a structural pillar here, stitching each couplet into a larger tapestry.',
+    ], h + 40));
+  }
+
+  if (chorusLines.length > 0) {
+    bonuses.push(pick([
+      'A recurring hook anchors the piece, acting as an emotional refrain the listener can hold onto.',
+      'The chorus functions as a gravitational center, pulling the surrounding verses into orbit.',
+      'Repetition of a central hook gives the piece an anthemic, singable quality.',
+    ], h + 50));
+  }
+
+  if (emotionalComplexity > 60) {
+    bonuses.push(pick([
+      'The emotional palette is remarkably complex — multiple feelings coexist and compete across the lines.',
+      'Rather than a single feeling, the lyrics juggle several emotional currents simultaneously.',
+      'Emotional complexity runs high, with layers of contradictory feeling stacked throughout.',
+    ], h + 60));
+  }
+
+  if (imageryDensity > 40) {
+    bonuses.push(pick([
+      'Concrete sensory imagery dominates the language, painting vivid scenes in the mind.',
+      'The writing is saturated with visual and tactile detail — colors, textures, and landscapes.',
+    ], h + 70));
+  }
+
+  if (topKeywords.length >= 3) {
+    bonuses.push(`Key motifs — ${topKeywords.slice(0, 3).join(', ')} — recur like thematic anchors.`);
+  }
+
+  // Cap bonuses at 2 to keep the paragraph tight
+  const selectedBonuses = bonuses.slice(0, 2);
+
+  return [s1, s2, s3, ...selectedBonuses, s4].join(' ');
+}
+
+// ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 
@@ -1161,6 +1345,30 @@ export function analyzeCreativeLyrics(lyrics: string): CreativeEngineResult {
   const lyricalFingerprint = calcLyricalFingerprint(narrativeArc, dominantEmotion, primaryMood, energyScore, slangIndex);
   const autoTitle = generateAutoTitle(moodBreakdown, themes, topKeywords, dominantEmotion, sentimentScore);
 
+  const posterTitle = `${primaryMood} ${primaryTheme}`;
+  const posterSubline = `${lyricalFingerprint} · ${sentimentLabel}`;
+
+  // Generate interpretation paragraph
+  const interpretation = generateInterpretation(
+    themes,
+    primaryMood,
+    sentimentLabel,
+    energyScore,
+    dominantEmotion,
+    flowScore,
+    metaphorDensity,
+    slangIndex,
+    narrativeArc,
+    lyricalFingerprint,
+    // v2 additional context
+    rhymeScore,
+    chorusLines,
+    repetitionScore,
+    imageryDensity,
+    topKeywords,
+    emotionalComplexity,
+  );
+
   return {
     moodBreakdown,
     themes,
@@ -1169,8 +1377,8 @@ export function analyzeCreativeLyrics(lyrics: string): CreativeEngineResult {
     energyScore,
     emotionScore,
     heatmap,
-    posterTitle: `${primaryMood} ${primaryTheme}`,
-    posterSubline: `${lyricalFingerprint} · ${sentimentLabel}`,
+    posterTitle,
+    posterSubline,
     // v2
     vocabularyRichness,
     repetitionScore,
@@ -1191,5 +1399,6 @@ export function analyzeCreativeLyrics(lyrics: string): CreativeEngineResult {
     sentimentSharpness,
     lyricalFingerprint,
     autoTitle,
+    interpretation,
   };
 }

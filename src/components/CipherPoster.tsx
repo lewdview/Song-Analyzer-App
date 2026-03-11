@@ -59,6 +59,7 @@ export function CipherPoster({ analysis, artistLine, songTitle }: CipherPosterPr
     const subLine = useRevealWords(analysis.posterSubline);
     const artistRev = useRevealWords(artistLine);
     const sideTitleRev = useRevealWords(displayTitle);
+    const interpretationRev = useRevealWords(analysis.interpretation || '');
     const [hintVisible, setHintVisible] = useState(true);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -157,12 +158,29 @@ export function CipherPoster({ analysis, artistLine, songTitle }: CipherPosterPr
                 </p>
             </div>
 
+            {/* Interpretation Paragraph */}
+            {analysis.interpretation && (
+                <div className="cp-interpretation">
+                    {interpretationRev.words.map((w, i) => (
+                        <span
+                            key={i}
+                            className={`cp-word${w.revealed ? ' cp-word--revealed-body' : ' cp-word--cipher-body'}`}
+                            onMouseEnter={() => { interpretationRev.reveal(i); handleWordReveal(); }}
+                        >
+                            {w.revealed ? w.text : w.cipher}
+                            {i < interpretationRev.words.length - 1 ? ' ' : ''}
+                        </span>
+                    ))}
+                </div>
+            )}
+
             {/* Reset button */}
             <button className="cp-reset-btn" onClick={() => {
                 titleLine.reset();
                 subLine.reset();
                 artistRev.reset();
                 sideTitleRev.reset();
+                interpretationRev.reset();
                 setHintVisible(true);
             }}>
                 ↺ re-encrypt

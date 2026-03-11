@@ -781,6 +781,59 @@
   line-height: 1.5;
 }
 
+/* ── POSTER VARIANT SWITCHER ── */
+.pv-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.pv-arrow {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(160, 80, 255, 0.3);
+  background: rgba(40, 0, 80, 0.3);
+  color: rgba(200, 140, 255, 0.8);
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  font-family: system-ui, sans-serif;
+}
+
+.pv-arrow:hover {
+  background: rgba(80, 0, 160, 0.4);
+  border-color: rgba(200, 100, 255, 0.6);
+  box-shadow: 0 0 12px rgba(160, 0, 255, 0.2);
+}
+
+.pv-label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.pv-label-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(220, 180, 255, 0.9);
+}
+
+.pv-label-desc {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: rgba(160, 120, 255, 0.5);
+}
+
 /* ── POSTER ── */
 .td-poster {
   border-radius: 0.9rem;

@@ -1,0 +1,199 @@
+/* ═══════════════════════════════════════════════════════════════
+   HOLO POSTER — holographic / prismatic gradient card
+   ═══════════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Outfit:wght@700;900&display=swap');
+
+.hp-poster {
+    position: relative;
+    border-radius: 1.25rem;
+    min-height: 340px;
+    padding: 2rem 2rem 1.75rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    overflow: hidden;
+    background: linear-gradient(135deg,
+            hsl(260, 50%, 8%) 0%,
+            hsl(280, 40%, 12%) 30%,
+            hsl(320, 35%, 10%) 70%,
+            hsl(240, 45%, 8%) 100%);
+    border: 1.5px solid transparent;
+    background-clip: padding-box;
+}
+
+/* Prismatic animated border */
+.hp-poster::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    background: conic-gradient(from var(--hp-angle, 0deg),
+            #ff6ec7, #7b68ee, #00ced1, #ffd700, #ff6ec7);
+    z-index: -1;
+    animation: hpRotate 6s linear infinite;
+}
+
+@property --hp-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+
+@keyframes hpRotate {
+    to {
+        --hp-angle: 360deg;
+    }
+}
+
+/* Holographic shimmer overlay */
+.hp-shimmer {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(115deg,
+            transparent 20%,
+            rgba(255, 255, 255, 0.04) 40%,
+            rgba(255, 255, 255, 0.08) 50%,
+            rgba(255, 255, 255, 0.04) 60%,
+            transparent 80%);
+    background-size: 200% 100%;
+    animation: hpShimmer 3s ease-in-out infinite;
+    pointer-events: none;
+    border-radius: inherit;
+}
+
+@keyframes hpShimmer {
+
+    0%,
+    100% {
+        background-position: 200% 0;
+    }
+
+    50% {
+        background-position: -200% 0;
+    }
+}
+
+/* ── Resonance badge ── */
+.hp-resonance {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    z-index: 2;
+}
+
+.hp-resonance-value {
+    font-family: 'Outfit', sans-serif;
+    font-size: 2rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, #ff6ec7, #7b68ee, #00ced1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+}
+
+.hp-resonance-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: rgba(200, 180, 255, 0.5);
+    margin-top: 0.15rem;
+}
+
+/* ── Text content ── */
+.hp-text {
+    position: relative;
+    z-index: 2;
+}
+
+.hp-eyebrow {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(200, 180, 255, 0.6);
+}
+
+.hp-title {
+    margin: 0.35rem 0 0;
+    font-family: 'Outfit', sans-serif;
+    font-size: clamp(1.4rem, 3.5vw, 2rem);
+    font-weight: 900;
+    line-height: 1.15;
+    color: #fff;
+    text-shadow: 0 0 30px rgba(120, 80, 255, 0.4);
+}
+
+.hp-subtitle {
+    margin: 0.35rem 0 0;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 400;
+    color: rgba(200, 180, 255, 0.7);
+    letter-spacing: 0.03em;
+}
+
+/* ── Mood pills ── */
+.hp-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+}
+
+.hp-pill {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: rgba(120, 80, 255, 0.15);
+    color: rgba(200, 180, 255, 0.85);
+    border: 1px solid rgba(120, 80, 255, 0.25);
+}
+
+/* ── Interpretation ── */
+.hp-interpretation {
+    margin-top: 1rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 400;
+    line-height: 1.55;
+    color: rgba(220, 200, 255, 0.75);
+    max-width: 90%;
+}
+
+/* ── Auto-title bottom bar ── */
+.hp-footer {
+    margin-top: 1.25rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(120, 80, 255, 0.15);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.hp-auto-title {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(180, 140, 255, 0.5);
+}
+
+.hp-fingerprint {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.62rem;
+    font-weight: 400;
+    color: rgba(160, 130, 255, 0.4);
+    letter-spacing: 0.08em;
+}
