@@ -1225,47 +1225,78 @@ function generateInterpretation(
   const iAdj = pick(IMAGERY_ADJ[iBand]!, h + 3);
   const iAdj2 = pick(IMAGERY_ADJ[iMidBand] || IMAGERY_ADJ.low!, h + 7);
   const slangPhrase = slangIndex > 30
-    ? 'a thick vernacular authenticity that roots the piece in street-level truth'
+    ? 'a thick vernacular streak that grounds the piece in real-world speech'
     : slangIndex > 20
-      ? 'a strong vernacular authenticity'
+      ? 'a noticeable street-level authenticity in the diction'
       : slangIndex > 12
-        ? 'touches of street-level dialect'
+        ? 'subtle touches of colloquial dialect woven into the phrasing'
         : slangIndex > 5
-          ? 'an occasional colloquial edge'
-          : 'a polished, literary register';
+          ? 'an occasional informal edge beneath otherwise careful diction'
+          : 'a clean, literary precision in its word choices';
 
   const s3Pool = [
     `Stylistically, the flow is ${fAdj}, the imagery ${iAdj}, and the voice carries ${slangPhrase}.`,
-    `The writing moves with a ${fAdj} rhythm, dressed in ${iAdj} language alongside ${slangPhrase}.`,
-    `Lyrically, it delivers a ${fAdj} cadence enriched by ${iAdj} expression and ${slangPhrase}.`,
-    `The craft is ${fAdj} in meter and ${iAdj} in texture, grounded by ${slangPhrase}.`,
-    `With ${fAdj} pacing and ${iAdj} wordplay, the piece maintains ${slangPhrase}.`,
-    `Structure-wise, the bars run ${fAdj}, layered with ${iAdj} detail and ${slangPhrase}.`,
-    `The voice is ${fAdj} and deliberate, with the imagery landing ${iAdj2} — and the register leans into ${slangPhrase}.`,
-    `Line by line, the pacing feels ${fAdj}, the metaphors ${iAdj}, and the diction reveals ${slangPhrase}.`,
-    `There's a ${fAdj} architecture to the verses: ${iAdj} in surface, ${slangPhrase} in character.`,
-    `The lyrical design is ${fAdj}, mixing ${iAdj} imagery with ${slangPhrase} throughout.`,
-    `Compositionally, the movement is ${fAdj}, the language ${iAdj}, the tonal register? ${slangPhrase}.`,
-    `These lines are ${fAdj} in their delivery, ${iAdj} in construction, and marked by ${slangPhrase}.`,
+    `The writing moves with a ${fAdj} rhythm, dressed in ${iAdj} language and ${slangPhrase}.`,
+    `Lyrically, the cadence runs ${fAdj}, enriched by ${iAdj} expression and ${slangPhrase}.`,
+    `The craft is ${fAdj} in its meter and ${iAdj} in its texture, with ${slangPhrase}.`,
+    `With ${fAdj} pacing and ${iAdj} detail, the piece maintains ${slangPhrase}.`,
+    `The bars move ${fAdj}, layered with ${iAdj} depth and anchored by ${slangPhrase}.`,
+    `The voice is ${fAdj} and deliberate, the imagery landing ${iAdj2}, and the register leans into ${slangPhrase}.`,
+    `Line by line, the pacing feels ${fAdj}, the metaphors ${iAdj}, and the diction shows ${slangPhrase}.`,
+    `There is a ${fAdj} architecture to these verses — ${iAdj} on the surface, with ${slangPhrase} running through.`,
+    `The lyrical design is ${fAdj}, pairing ${iAdj} imagery with ${slangPhrase}.`,
+    `Compositionally, the movement is ${fAdj} and the language ${iAdj}, carried by ${slangPhrase}.`,
+    `These lines land ${fAdj} in their delivery, ${iAdj} in their construction, and marked by ${slangPhrase}.`,
   ];
 
-  // ── Sentence 4: Conclusion / Arc (pool of 12) ──
+  // ── Fingerprint formatting ──
+  // Convert raw fingerprint like "Turbulent Sadness Intimate" into multiple
+  // natural prose forms, then pick one deterministically.
+  const fpParts = fingerprint.split(/\s+/).map(w => w.toLowerCase());
+  let fpVariants: string[];
+  if (fpParts.length === 3) {
+    // Pattern: [arcWord] [emotion] [voiceWord]
+    fpVariants = [
+      `${fpParts[0]} and ${fpParts[2]} ${fpParts[1]}`,                         // "turbulent and intimate sadness"
+      `${fpParts[1]}, ${fpParts[0]} and ${fpParts[2]} in equal measure`,       // "sadness, turbulent and intimate in equal measure"
+      `something ${fpParts[0]} — ${fpParts[1]} filtered through an ${fpParts[2]} lens`, // "something turbulent — sadness filtered through an intimate lens"
+      `${fpParts[2]} ${fpParts[1]} with a ${fpParts[0]} edge`,                 // "intimate sadness with a turbulent edge"
+      `a ${fpParts[0]}, ${fpParts[2]} kind of ${fpParts[1]}`,                  // "a turbulent, intimate kind of sadness"
+      `${fpParts[1]} — ${fpParts[0]} in nature, ${fpParts[2]} in delivery`,    // "sadness — turbulent in nature, intimate in delivery"
+    ];
+  } else if (fpParts.length === 2) {
+    fpVariants = [
+      `${fpParts[0]} ${fpParts[1]}`,
+      `something deeply ${fpParts[0]} and ${fpParts[1]}`,
+      `${fpParts[1]} with a ${fpParts[0]} undertone`,
+    ];
+  } else {
+    fpVariants = [fingerprint.toLowerCase()];
+  }
+  const fpFormatted = pick(fpVariants, h + 6);
+
+  // ── Sentence 4: Conclusion / Arc (pool of 16) ──
   const arcAdj = pick(ARC_ADJ[narrativeArc] || ARC_ADJ.steady!, h + 4);
-  const fp = fingerprint.toLowerCase();
+  // Secondary fingerprint variant for templates that benefit from a different phrasing
+  const fpAlt = pick(fpVariants, h + 13);
 
   const s4Pool = [
-    `The emotional arc is ${arcAdj}, ultimately leaving the listener with an impression of ${fp}.`,
-    `Taken as a whole, the trajectory is ${arcAdj} — a journey that resolves into ${fp}.`,
-    `Over its course, the piece traces an ${arcAdj} arc, crystallizing into ${fp}.`,
-    `From start to finish the sentiment moves in an ${arcAdj} pattern, distilling into ${fp}.`,
-    `The narrative builds ${arcAdj}ly, sealing the experience as one of ${fp}.`,
-    `Its emotional shape is ${arcAdj}, a progression that culminates in the essence of ${fp}.`,
-    `When the last line lands, the ${arcAdj} arc has delivered its verdict: this is a work of ${fp}.`,
-    `Step by step, the ${arcAdj} emotional motion resolves into something best described as ${fp}.`,
-    `The ${arcAdj} trajectory gives the piece its gravitational pull — and the final orbit settles at ${fp}.`,
-    `By the close, the ${arcAdj} journey has etched a singular feeling into the listener: ${fp}.`,
-    `The piece doesn't arrive — it ${arcAdj}ly unfolds, revealing itself as a study in ${fp}.`,
-    `What remains after the final word is the imprint of an ${arcAdj} voyage through ${fp}.`,
+    `The emotional arc is ${arcAdj}, ultimately leaving the listener with a sense of ${fpFormatted}.`,
+    `Taken as a whole, the trajectory is ${arcAdj} — a journey that resolves into ${fpAlt}.`,
+    `Over its course, the piece traces an ${arcAdj} arc that crystallizes into ${fpFormatted}.`,
+    `From start to finish, the sentiment moves in an ${arcAdj} pattern, settling into ${fpFormatted}.`,
+    `The narrative unfolds ${arcAdj}ly, sealing the experience as one defined by ${fpFormatted}.`,
+    `Its emotional shape is ${arcAdj} — a progression that culminates in ${fpFormatted}.`,
+    `When the last line lands, the ${arcAdj} arc delivers its verdict: ${fpAlt}.`,
+    `Step by step, the ${arcAdj} emotional motion resolves into ${fpFormatted}.`,
+    `The ${arcAdj} trajectory gives the piece its pull, and the final impression settles at ${fpFormatted}.`,
+    `By the close, the ${arcAdj} journey has etched ${fpFormatted} into the listener's memory.`,
+    `The piece doesn't arrive all at once — it ${arcAdj}ly unfolds, revealing itself as ${fpAlt}.`,
+    `What remains after the final word is the feeling of ${fpFormatted}, carried on an ${arcAdj} wave.`,
+    `In the end, the ${arcAdj} arc resolves to a single truth: this is ${fpAlt}.`,
+    `The listener walks away carrying ${fpFormatted} — the ${arcAdj} payoff of every line that came before.`,
+    `Everything builds ${arcAdj}ly toward one destination: ${fpFormatted}.`,
+    `The final emotional signature? ${fpAlt} — arrived at through an ${arcAdj} unfolding.`,
   ];
 
   const s1 = pick(s1Pool, h);
