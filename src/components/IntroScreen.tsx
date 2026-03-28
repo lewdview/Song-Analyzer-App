@@ -5,7 +5,7 @@ interface IntroScreenProps {
   onComplete: () => void;
 }
 
-const TAGLINE_WORDS = ['See', 'what', 'your', 'Lyrics', 'say', 'about', 'you'];
+const TAGLINE_WORDS = ['See', 'what', 'your', 'Lyrics', 'say', 'about'];
 const CIPHER_CHARS = '*%$#@!~^&?≠§±∆∑π√Ω≈><|';
 
 const randomCipher = () => CIPHER_CHARS[Math.floor(Math.random() * CIPHER_CHARS.length)];
@@ -75,6 +75,7 @@ function useParticleCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>)
       ctx!.clearRect(0, 0, W, H);
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
+        if (!p) continue;
         p.x += p.vx;
         p.y += p.vy;
         p.vy -= 0.008; // float upward slowly
@@ -110,9 +111,8 @@ export function IntroScreen({ onComplete }: IntroScreenProps) {
   const [wordStates, setWordStates] = useState<WordState[]>(
     TAGLINE_WORDS.map((w) => ({ word: w, cipher: makeCipherFor(w), revealed: false, exited: false }))
   );
-  const [allRevealed, setAllRevealed] = useState(false);
+  const [finalSequence, setFinalSequence] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
-  const [isMorphing, setIsMorphing] = useState(false);
   const [loadProgress, setLoadProgress] = useState(0);
   const [showHint, setShowHint] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -143,45 +143,49 @@ export function IntroScreen({ onComplete }: IntroScreenProps) {
 
   // Check all revealed
   useEffect(() => {
-    if (wordStates.every((ws) => ws.revealed)) {
-      setAllRevealed(true);
+    if (wordStates.length > 0 && wordStates.every((ws) => ws.revealed) && !finalSequence) {
       setShowHint(false);
+      setFinalSequence(true);
     }
-  }, [wordStates]);
+  }, [wordStates, finalSequence]);
+
+  // Orchestrate final engulfment sequence
+  useEffect(() => {
+    if (finalSequence) {
+      setTimeout(() => {
+        setIsExiting(true);
+        exitRef.current = setTimeout(() => onComplete(), 600);
+      }, 2000); // Wait 2s for 'you' animation
+    }
+  }, [finalSequence, onComplete]);
 
   const handleWordHover = useCallback((index: number) => {
     setWordStates((prev) => {
-      if (prev[index].revealed) return prev;
+      const wordState = prev[index];
+      if (!wordState || wordState.revealed) return prev;
       const next = [...prev];
-      next[index] = { ...next[index], revealed: true };
+      next[index] = { ...wordState, revealed: true };
       return next;
     });
     setShowHint(false);
     // Mark as fully exited after animation completes
     setTimeout(() => {
       setWordStates((prev) => {
-        const next = [...prev];
-        next[index] = { ...next[index], exited: true };
-        return next;
+        const wordState = prev[index];
+      if (!wordState) return prev;
+      const next = [...prev];
+      next[index] = { ...wordState, exited: true };
+      return next;
       });
     }, 2400);
   }, []);
-
-  const handleEnter = useCallback(() => {
-    // Morph phase: briefly hold with "morphing" class
-    setIsMorphing(true);
-    setTimeout(() => {
-      setIsExiting(true);
-      exitRef.current = setTimeout(() => onComplete(), 900);
-    }, 400);
-  }, [onComplete]);
 
   useEffect(() => {
     return () => { if (exitRef.current) clearTimeout(exitRef.current); };
   }, []);
 
   return (
-    <div className={`intro-screen${isExiting ? ' exiting' : ''}${isMorphing ? ' morphing' : ''}`}>
+    <div className={`intro-screen${isExiting ? ' exiting' : ''}${finalSequence ? ' morphing' : ''}`}>
       {/* Aurora */}
       <div className="intro-bg-aurora" />
 
@@ -215,12 +219,8 @@ export function IntroScreen({ onComplete }: IntroScreenProps) {
         hover to decode
       </p>
 
-      {/* Enter button */}
-      <div className={`intro-enter-btn${allRevealed ? ' visible' : ''}`}>
-        <button onClick={handleEnter} id="intro-enter-button">
-          Enter
-        </button>
-      </div>
+      {/* The word "you" */}
+      <div className={`final-you-word${finalSequence ? ' animate' : ''}`}>you</div>
 
       {/* Progress bar */}
       <div className="intro-loading-bar-wrap">

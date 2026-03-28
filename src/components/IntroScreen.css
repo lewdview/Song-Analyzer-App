@@ -317,90 +317,49 @@
     }
 }
 
-/* ── ENTER BUTTON ── */
-.intro-enter-btn {
-    position: relative;
-    z-index: 4;
-    margin-top: 52px;
-    opacity: 0;
-    pointer-events: none;
-    transform: scale(0.75) translateY(12px);
-    transition: opacity 0.7s cubic-bezier(0.3, 0, 0.1, 1),
-        transform 0.7s cubic-bezier(0.3, 0, 0.1, 1);
-}
-
-.intro-enter-btn.visible {
-    opacity: 1;
-    pointer-events: all;
-    transform: scale(1) translateY(0);
-    animation: enterPulse 2.4s ease-in-out infinite;
-}
-
-@keyframes enterPulse {
-
-    0%,
-    100% {
-        box-shadow: 0 0 0 0 rgba(180, 40, 255, 0);
-    }
-
-    50% {
-        box-shadow: 0 0 40px 8px rgba(180, 40, 255, 0.25);
-    }
-}
-
-.intro-enter-btn button {
-    font-family: 'Orbitron', sans-serif;
-    font-weight: 700;
-    font-size: 0.9rem;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    color: #fff;
-    background: transparent;
-    border: 1.5px solid rgba(200, 80, 255, 0.75);
-    border-radius: 6px;
-    padding: 14px 60px;
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    transition: border-color 0.25s, box-shadow 0.25s;
-    box-shadow:
-        0 0 20px rgba(180, 40, 255, 0.3),
-        inset 0 0 20px rgba(180, 40, 255, 0.06);
-}
-
-/* Shimmer sweep on button */
-.intro-enter-btn button::before {
-    content: '';
+/* ── FINAL SEQUENCE "YOU" ── */
+.final-you-word {
     position: absolute;
-    inset: 0;
-    background: linear-gradient(120deg,
-            transparent 30%,
-            rgba(255, 255, 255, 0.08) 50%,
-            transparent 70%);
-    transform: translateX(-100%);
-    animation: btnSweep 3s ease-in-out infinite 0.8s;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 6rem;
+    color: #fff;
+    opacity: 0;
+    z-index: 100;
+    pointer-events: none;
+    text-shadow:
+        0 0 10px #fff,
+        0 0 30px rgba(220, 100, 255, 1),
+        0 0 80px rgba(180, 40, 255, 0.9);
 }
 
-@keyframes btnSweep {
+.final-you-word.animate {
+    animation: engulfScreen 2s cubic-bezier(0.5, 0, 0.1, 1) forwards;
+}
+
+@keyframes engulfScreen {
     0% {
-        transform: translateX(-100%);
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.1);
     }
-
-    40% {
-        transform: translateX(100%);
+    20% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(0.8);
+        filter: blur(0px);
     }
-
+    60% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.1);
+        filter: blur(0px);
+    }
     100% {
-        transform: translateX(100%);
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(20);
+        filter: blur(15px);
     }
-}
-
-.intro-enter-btn button:hover {
-    border-color: rgba(255, 160, 255, 0.9);
-    box-shadow:
-        0 0 50px rgba(220, 100, 255, 0.55),
-        0 0 100px rgba(180, 40, 255, 0.25),
-        inset 0 0 25px rgba(180, 40, 255, 0.1);
 }
 
 /* ── EXIT ── */
