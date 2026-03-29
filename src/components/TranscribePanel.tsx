@@ -184,17 +184,30 @@ export function TranscribePanel({ onClose, onUseLyrics }: TranscribePanelProps) 
             setProgress(90);
             const data = await res.json() as {
                 text?: string;
+                transcription?: string;
                 chunks?: { text: string; timestamp: [number, number] }[];
+                words?: { text?: string; word?: string; start?: number; end?: number }[];
+                segments?: { text?: string; start?: number; end?: number }[];
             };
 
-            const text = data.text ?? '';
-            const chunks = data.chunks ?? [];
-
-            const timings: WordTiming[] = chunks.map((c) => ({
-                text: c.text.trim(),
-                start: c.timestamp[0] ?? 0,
-                end: c.timestamp[1] ?? 0,
-            })).filter((w) => w.text.length > 0);
+            const text = (data.transcription ?? data.text ?? '').trim();
+            const timings: WordTiming[] = Array.isArray(data.words) && data.words.length > 0
+                ? data.words.map((word) => ({
+                    text: (word.word ?? word.text ?? '').trim(),
+                    start: word.start ?? 0,
+                    end: word.end ?? 0,
+                })).filter((w) => w.text.length > 0)
+                : Array.isArray(data.chunks) && data.chunks.length > 0
+                    ? data.chunks.map((chunk) => ({
+                        text: chunk.text.trim(),
+                        start: chunk.timestamp[0] ?? 0,
+                        end: chunk.timestamp[1] ?? 0,
+                    })).filter((w) => w.text.length > 0)
+                    : (data.segments ?? []).map((segment) => ({
+                        text: (segment.text ?? '').trim(),
+                        start: segment.start ?? 0,
+                        end: segment.end ?? 0,
+                    })).filter((w) => w.text.length > 0);
 
             setFullText(text);
             setWordTimings(timings);
