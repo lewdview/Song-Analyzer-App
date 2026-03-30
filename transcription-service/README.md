@@ -14,6 +14,7 @@ It provides:
 
 - Node.js 18+
 - `ffmpeg` installed and available on PATH
+- for Railway/container deploys, the platform-provided `PORT` must be honored
 
 ## Quick Start
 
@@ -32,6 +33,44 @@ Service defaults:
 - default model: `Xenova/whisper-medium.en`
 
 Note: first startup may take time while model files download.
+
+## Production Deploy
+
+Recommended shape:
+- host this service separately from the Vercel frontend
+- point the frontend's `VITE_WHISPER_SERVICE_URL` at the service URL
+- set `WHISPER_CORS_ORIGIN` to your frontend origin
+
+### Railway
+
+This folder includes a `Dockerfile` for Railway/container deploys.
+
+Suggested service variables:
+
+```bash
+WHISPER_CORS_ORIGIN=https://your-frontend-domain
+WHISPER_MODEL=Xenova/whisper-tiny.en
+WHISPER_FALLBACK_MODELS=Xenova/whisper-tiny.en
+WHISPER_DEVICE=cpu
+WHISPER_QUANTIZED=true
+WHISPER_NUM_BEAMS=1
+WHISPER_FORCE_WORD_TIMINGS=true
+ENABLE_LYRICS_ANALYSIS=true
+LYRICS_AI_PROVIDER=local
+```
+
+Notes:
+- for English-only Whisper models such as `*.en`, leave `WHISPER_LANGUAGE` unset/blank; this service now omits the default `english` hint automatically for `.en` models because that hint can produce empty transcripts in `transformers.js`
+- the included `Dockerfile` uses `whisper-tiny.en` defaults so small Railway instances stay within memory limits
+
+Optional provider keys:
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `XAI_API_KEY` / `GROK_API_KEY`
+
+After the service is live:
+- set `VITE_WHISPER_SERVICE_URL=https://your-service-domain` in the frontend deployment
+- redeploy the frontend
 
 ## API
 
@@ -109,7 +148,7 @@ It does not load `.env` automatically.
 | `WHISPER_FALLBACK_MODELS` | `Xenova/whisper-medium.en,Xenova/whisper-base.en` | Fallback model list |
 | `WHISPER_DEVICE` | `cpu` | Inference device |
 | `WHISPER_QUANTIZED` | `false` | Quantized model mode |
-| `WHISPER_LANGUAGE` | `english` | Language hint (empty = auto-detect) |
+| `WHISPER_LANGUAGE` | `english` | Language hint (empty = auto-detect). English-only `*.en` models automatically ignore `english`/`en` hints. |
 | `WHISPER_SAMPLE_RATE` | `16000` | Decode sample rate |
 | `WHISPER_CHUNK_LENGTH_S` | `12` | Chunk length |
 | `WHISPER_STRIDE_LENGTH_S` | `1.5` | Chunk overlap |
@@ -159,8 +198,10 @@ npm run dev
   - install `ffmpeg`
   - verify command is available in shell PATH
 - Model init fails or memory pressure:
-  - use a smaller model, for example `Xenova/whisper-base.en`
+  - use a smaller model, for example `Xenova/whisper-tiny.en`
   - keep `WHISPER_QUANTIZED=true` for lower memory usage if needed
+- Empty transcripts with `*.en` models:
+  - leave `WHISPER_LANGUAGE` unset, or rely on the built-in `.en` guard in `server.js`
 
 ## Related Docs
 
