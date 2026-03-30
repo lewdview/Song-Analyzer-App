@@ -1,13 +1,20 @@
 import express from 'express';
 import multer from 'multer';
 import { spawn } from 'child_process';
+import { promises as fs } from 'fs';
+import os from 'os';
+import path from 'path';
+import { randomUUID } from 'crypto';
 import { pipeline } from '@xenova/transformers';
+import { fileURLToPath } from 'url';
 import {
   analyzeLyricsWithProvider,
   getConfiguredProvider,
   normalizeProvider,
 } from './lyrics-ai-router.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 const corsOrigin = process.env.WHISPER_CORS_ORIGIN || '*';
@@ -58,8 +65,14 @@ const WHISPER_MEMORY_SAVER_FILE_MB = Number.parseFloat(process.env.WHISPER_MEMOR
 const WHISPER_MEMORY_SAVER_DURATION_S = Number.parseFloat(process.env.WHISPER_MEMORY_SAVER_DURATION_S || '150');
 const WHISPER_MEMORY_SAVER_CHUNK_LENGTH_S = Number.parseFloat(process.env.WHISPER_MEMORY_SAVER_CHUNK_LENGTH_S || '6');
 const WHISPER_MEMORY_SAVER_STRIDE_LENGTH_S = Number.parseFloat(process.env.WHISPER_MEMORY_SAVER_STRIDE_LENGTH_S || '0.75');
-const WHISPER_MEMORY_SAVER_WINDOW_LENGTH_S = Number.parseFloat(process.env.WHISPER_MEMORY_SAVER_WINDOW_LENGTH_S || '20');
-const WHISPER_MEMORY_SAVER_WINDOW_OVERLAP_S = Number.parseFloat(process.env.WHISPER_MEMORY_SAVER_WINDOW_OVERLAP_S || '0.75');
+const WHISPER_MEMORY_SAVER_WINDOW_LENGTH_S = Number.parseFloat(process.env.WHISPER_MEMORY_SAVER_WINDOW_LENGTH_S || '12');
+const WHISPER_MEMORY_SAVER_WINDOW_OVERLAP_S = Number.parseFloat(process.env.WHISPER_MEMORY_SAVER_WINDOW_OVERLAP_S || '0.5');
+const WHISPER_MEMORY_SAVER_RESET_EVERY_WINDOWS = Number.parseInt(process.env.WHISPER_MEMORY_SAVER_RESET_EVERY_WINDOWS || '4', 10);
+const WHISPER_PLAIN_MODE_FILE_MB = Number.parseFloat(process.env.WHISPER_PLAIN_MODE_FILE_MB || '6');
+const WHISPER_PLAIN_MODE_DURATION_S = Number.parseFloat(process.env.WHISPER_PLAIN_MODE_DURATION_S || '210');
+const WHISPER_PROCESS_ISOLATION_FILE_MB = Number.parseFloat(process.env.WHISPER_PROCESS_ISOLATION_FILE_MB || '6');
+const WHISPER_PROCESS_ISOLATION_DURATION_S = Number.parseFloat(process.env.WHISPER_PROCESS_ISOLATION_DURATION_S || '210');
+const WHISPER_PRELOAD_ON_STARTUP = process.env.WHISPER_PRELOAD_ON_STARTUP === 'true';
 
 // Allow browser apps (different origin/port) to call the local transcription API.
 app.use((req, res, next) => {
@@ -126,6 +139,60 @@ function decodeAudioToFloat32(audioBuffer) {
     ffmpeg.stdin.on('error', () => {});
     ffmpeg.stdin.end(audioBuffer);
   });
+}
+
+function getAudioDurationSeconds(audioPath) {
+  return new Promise((resolve, reject) => {
+    const ffprobe = spawn('ffprobe', [
+      '-v',
+      'error',
+      '-show_entries',
+      'format=duration',
+      '-of',
+      'default=noprint_wrappers=1:nokey=1',
+      audioPath,
+    ]);
+
+    const stdoutChunks = [];
+    const stderrChunks = [];
+
+    ffprobe.stdout.on('data', (chunk) => stdoutChunks.push(chunk));
+    ffprobe.stderr.on('data', (chunk) => stderrChunks.push(chunk));
+    ffprobe.on('error', (err) => reject(new Error(`Failed to start ffprobe: ${err.message}`)));
+    ffprobe.on('close', (code) => {
+      if (code !== 0) {
+        const details = Buffer.concat(stderrChunks).toString('utf8').trim();
+        reject(new Error(`ffprobe failed (exit ${code})${details ? `: ${details}` : ''}`));
+        return;
+      }
+
+      const duration = Number.parseFloat(Buffer.concat(stdoutChunks).toString('utf8').trim());
+      if (!Number.isFinite(duration) || duration <= 0) {
+        reject(new Error('ffprobe returned an invalid duration'));
+        return;
+      }
+
+      resolve(duration);
+    });
+  });
+}
+
+async function writeUploadToTempFile(buffer, originalName) {
+  const safeExt = path.extname(String(originalName || '')).slice(0, 16);
+  const filePath = path.join(os.tmpdir(), `whisper-upload-${randomUUID()}${safeExt}`);
+  await fs.writeFile(filePath, buffer);
+  return filePath;
+}
+
+async function removeTempFile(filePath) {
+  if (!filePath) return;
+  try {
+    await fs.unlink(filePath);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      console.warn(`Failed to remove temp file ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
 }
 
 function normalizeWord(word) {
@@ -307,6 +374,36 @@ let transcriber = null;
 let forceNoTimestamps = false;
 let activeWhisperModel = WHISPER_MODEL;
 
+function getProcessMemorySummary() {
+  const usage = process.memoryUsage();
+  const toMb = (value) => `${(value / 1024 / 1024).toFixed(1)}MB`;
+  return `rss=${toMb(usage.rss)}, heapUsed=${toMb(usage.heapUsed)}, external=${toMb(usage.external)}`;
+}
+
+async function maybeRunGarbageCollection() {
+  if (typeof global.gc === 'function') {
+    global.gc();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
+
+async function disposeTranscriber(reason = 'unspecified') {
+  if (!transcriber) {
+    return;
+  }
+
+  console.warn(`Disposing Whisper model (${activeWhisperModel}) [${reason}]`);
+  try {
+    await transcriber.dispose();
+  } catch (error) {
+    console.warn(`Whisper dispose warning: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    transcriber = null;
+    await maybeRunGarbageCollection();
+    console.warn(`Whisper model disposed; memory after cleanup: ${getProcessMemorySummary()}`);
+  }
+}
+
 async function initializeTranscriber() {
   if (!transcriber) {
     console.log('Initializing Whisper model (first run may take a few minutes)...');
@@ -357,10 +454,16 @@ async function transcribeSequentialWindows(audioSamples, options) {
   const windowSamples = Math.max(1, Math.floor(windowLengthS * WHISPER_SAMPLE_RATE));
   const overlapSamples = Math.max(0, Math.floor(overlapS * WHISPER_SAMPLE_RATE));
   const stepSamples = Math.max(1, windowSamples - overlapSamples);
+  const totalWindows = Math.max(1, Math.ceil(Math.max(0, audioSamples.length - overlapSamples) / stepSamples));
+  const recycleEveryWindows = Number.isFinite(WHISPER_MEMORY_SAVER_RESET_EVERY_WINDOWS) && WHISPER_MEMORY_SAVER_RESET_EVERY_WINDOWS > 0
+    ? Math.floor(WHISPER_MEMORY_SAVER_RESET_EVERY_WINDOWS)
+    : 0;
   const collectedTexts = [];
   const collectedChunks = [];
+  let windowIndex = 0;
 
   for (let start = 0; start < audioSamples.length; start += stepSamples) {
+    windowIndex += 1;
     const end = Math.min(audioSamples.length, start + windowSamples);
     const slice = audioSamples.subarray(start, end);
     const offsetSeconds = start / WHISPER_SAMPLE_RATE;
@@ -393,8 +496,161 @@ async function transcribeSequentialWindows(audioSamples, options) {
       });
     }
 
+    if (windowIndex === 1 || windowIndex === totalWindows || windowIndex % 5 === 0) {
+      console.log(
+        `Memory-saver window ${windowIndex}/${totalWindows} completed (offset=${offsetSeconds.toFixed(1)}s, chars=${windowText.length}, ${getProcessMemorySummary()})`
+      );
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await maybeRunGarbageCollection();
+
+    if (
+      recycleEveryWindows > 0 &&
+      windowIndex < totalWindows &&
+      windowIndex % recycleEveryWindows === 0
+    ) {
+      await disposeTranscriber(`memory-saver recycle after window ${windowIndex}/${totalWindows}`);
+      await initializeTranscriber();
+    }
+
     if (end >= audioSamples.length) {
       break;
+    }
+  }
+
+  return {
+    text: collectedTexts.join(' ').trim(),
+    chunks: collectedChunks,
+  };
+}
+
+function serializeWorkerReturnTimestamps(value) {
+  if (value === 'word') return 'word';
+  if (value === true) return 'segment';
+  return 'none';
+}
+
+async function transcribeWindowWithWorker({
+  audioPath,
+  offsetSeconds,
+  durationSeconds,
+  modelName,
+  device,
+  quantized,
+  language,
+  returnTimestamps,
+}) {
+  const workerOutputPath = path.join(os.tmpdir(), `whisper-window-${randomUUID()}.json`);
+  const workerScriptPath = path.join(__dirname, 'window-worker.js');
+
+  try {
+    await new Promise((resolve, reject) => {
+      const child = spawn(
+        process.execPath,
+        [
+          workerScriptPath,
+          audioPath,
+          workerOutputPath,
+          String(offsetSeconds),
+          String(durationSeconds),
+          modelName,
+          device,
+          quantized ? 'true' : 'false',
+          String(WHISPER_SAMPLE_RATE),
+          serializeWorkerReturnTimestamps(returnTimestamps),
+          language || '',
+        ],
+        {
+          stdio: ['ignore', 'ignore', 'pipe'],
+          env: {
+            ...process.env,
+            WHISPER_CHILD: 'true',
+          },
+        }
+      );
+
+      const stderrChunks = [];
+      child.stderr.on('data', (chunk) => stderrChunks.push(chunk));
+      child.on('error', (err) => reject(new Error(`Failed to start Whisper worker: ${err.message}`)));
+      child.on('close', (code) => {
+        if (code !== 0) {
+          const details = Buffer.concat(stderrChunks).toString('utf8').trim();
+          reject(new Error(`Whisper worker failed (exit ${code})${details ? `: ${details}` : ''}`));
+          return;
+        }
+        resolve();
+      });
+    });
+
+    const payload = JSON.parse(await fs.readFile(workerOutputPath, 'utf8'));
+    return payload;
+  } finally {
+    await removeTempFile(workerOutputPath);
+  }
+}
+
+async function transcribeIsolatedWindows({
+  audioPath,
+  audioDurationSeconds,
+  modelName,
+  returnTimestamps,
+  language,
+}) {
+  const windowLengthS = Number.isFinite(WHISPER_MEMORY_SAVER_WINDOW_LENGTH_S) && WHISPER_MEMORY_SAVER_WINDOW_LENGTH_S > 0
+    ? WHISPER_MEMORY_SAVER_WINDOW_LENGTH_S
+    : 20;
+  const requestedOverlapS = Number.isFinite(WHISPER_MEMORY_SAVER_WINDOW_OVERLAP_S) && WHISPER_MEMORY_SAVER_WINDOW_OVERLAP_S >= 0
+    ? WHISPER_MEMORY_SAVER_WINDOW_OVERLAP_S
+    : 0.75;
+  const overlapS = Math.min(requestedOverlapS, Math.max(0, (windowLengthS / 2) - 0.01));
+  const stepSeconds = Math.max(0.25, windowLengthS - overlapS);
+  const totalWindows = Math.max(1, Math.ceil(Math.max(0, audioDurationSeconds - overlapS) / stepSeconds));
+  const collectedTexts = [];
+  const collectedChunks = [];
+  let windowIndex = 0;
+
+  for (let offsetSeconds = 0; offsetSeconds < audioDurationSeconds; offsetSeconds += stepSeconds) {
+    windowIndex += 1;
+    const remainingSeconds = Math.max(0.1, audioDurationSeconds - offsetSeconds);
+    const durationSeconds = Math.min(windowLengthS, remainingSeconds);
+    const windowResult = await transcribeWindowWithWorker({
+      audioPath,
+      offsetSeconds,
+      durationSeconds,
+      modelName,
+      device: WHISPER_DEVICE,
+      quantized: WHISPER_QUANTIZED,
+      language,
+      returnTimestamps,
+    });
+    const windowText = String(windowResult?.text || '').trim();
+
+    if (windowText) {
+      collectedTexts.push(windowText);
+    }
+
+    if (Array.isArray(windowResult?.chunks) && windowResult.chunks.length > 0) {
+      for (const chunk of windowResult.chunks) {
+        const timestamp = Array.isArray(chunk?.timestamp) ? chunk.timestamp : null;
+        const startTime = typeof timestamp?.[0] === 'number' ? timestamp[0] + offsetSeconds : offsetSeconds;
+        const endTime = typeof timestamp?.[1] === 'number' ? timestamp[1] + offsetSeconds : (offsetSeconds + durationSeconds);
+        collectedChunks.push({
+          ...chunk,
+          timestamp: [startTime, endTime],
+        });
+      }
+    } else if (windowText) {
+      collectedChunks.push({
+        text: windowText,
+        timestamp: [offsetSeconds, offsetSeconds + durationSeconds],
+      });
+    }
+
+    if (windowIndex === 1 || windowIndex === totalWindows || windowIndex % 5 === 0) {
+      console.log(
+        `Worker window ${windowIndex}/${totalWindows} completed (offset=${offsetSeconds.toFixed(1)}s, chars=${windowText.length}, ${getProcessMemorySummary()})`
+      );
     }
   }
 
@@ -411,6 +667,7 @@ app.get('/health', (req, res) => {
 
 // Main transcription endpoint
 app.post('/transcribe', upload.single('audio'), async (req, res) => {
+  let tempUploadPath = null;
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No audio file provided' });
@@ -422,46 +679,19 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
 
     console.log(`Starting transcription for: ${fileName} (${fileSize} bytes)`);
 
-    // Initialize transcriber if not already done
-    if (!transcriber) {
-      await initializeTranscriber();
-    }
-
-    // Decode incoming audio (mp3/wav/etc) to mono Float32 PCM for Node Whisper inference.
-    const audioSamples = await decodeAudioToFloat32(uploadBuffer);
-    uploadBuffer = null;
-    req.file.buffer = undefined;
-
-    const audioDurationS = audioSamples.length / WHISPER_SAMPLE_RATE;
-    const useMemorySaverMode =
-      (Number.isFinite(WHISPER_MEMORY_SAVER_FILE_MB) && fileSize >= WHISPER_MEMORY_SAVER_FILE_MB * 1024 * 1024) ||
-      (Number.isFinite(WHISPER_MEMORY_SAVER_DURATION_S) && audioDurationS >= WHISPER_MEMORY_SAVER_DURATION_S);
-
     // Run transcription
     const startTime = Date.now();
-    const defaultChunkLengthS = Number.isFinite(WHISPER_CHUNK_LENGTH_S) && WHISPER_CHUNK_LENGTH_S > 0 ? WHISPER_CHUNK_LENGTH_S : 12;
-    const defaultStrideLengthS = Number.isFinite(WHISPER_STRIDE_LENGTH_S) && WHISPER_STRIDE_LENGTH_S >= 0 ? WHISPER_STRIDE_LENGTH_S : 1.5;
-    const chunkLengthS = useMemorySaverMode
-      ? Math.min(defaultChunkLengthS, Number.isFinite(WHISPER_MEMORY_SAVER_CHUNK_LENGTH_S) && WHISPER_MEMORY_SAVER_CHUNK_LENGTH_S > 0 ? WHISPER_MEMORY_SAVER_CHUNK_LENGTH_S : 6)
-      : defaultChunkLengthS;
-    const requestedStrideLengthS = useMemorySaverMode
-      ? Math.min(defaultStrideLengthS, Number.isFinite(WHISPER_MEMORY_SAVER_STRIDE_LENGTH_S) && WHISPER_MEMORY_SAVER_STRIDE_LENGTH_S >= 0 ? WHISPER_MEMORY_SAVER_STRIDE_LENGTH_S : 0.75)
-      : defaultStrideLengthS;
-    // Keep overlap conservative to reduce duplication and avoid invalid/degenerate chunk windows.
-    const maxSafeStrideLengthS = Math.max(0, (chunkLengthS / 2) - 0.1);
-    const strideLengthS = Math.min(requestedStrideLengthS, maxSafeStrideLengthS);
-
-    if (useMemorySaverMode) {
-      console.warn(
-        `Using memory-saver transcription mode for ${fileName} (${(fileSize / 1024 / 1024).toFixed(2)}MB, ${audioDurationS.toFixed(1)}s, window=${WHISPER_MEMORY_SAVER_WINDOW_LENGTH_S}s, overlap=${WHISPER_MEMORY_SAVER_WINDOW_OVERLAP_S}s)`
-      );
-    }
 
     const getReturnTimestamps = (mode) => {
       if (mode === 'word') return 'word';
       if (mode === 'segment') return true;
       return false;
     };
+
+    const defaultChunkLengthS = Number.isFinite(WHISPER_CHUNK_LENGTH_S) && WHISPER_CHUNK_LENGTH_S > 0 ? WHISPER_CHUNK_LENGTH_S : 12;
+    const defaultStrideLengthS = Number.isFinite(WHISPER_STRIDE_LENGTH_S) && WHISPER_STRIDE_LENGTH_S >= 0 ? WHISPER_STRIDE_LENGTH_S : 1.5;
+    let chunkLengthS = defaultChunkLengthS;
+    let strideLengthS = Math.min(defaultStrideLengthS, Math.max(0, (defaultChunkLengthS / 2) - 0.1));
 
     const buildTranscriptionOptions = ({ mode, includeAdvanced }) => {
       const options = {
@@ -492,54 +722,118 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     };
 
     let result;
-    let effectiveTimestampMode = forceNoTimestamps
+    let effectiveTimestampMode;
+
+    tempUploadPath = await writeUploadToTempFile(uploadBuffer, fileName);
+    uploadBuffer = null;
+    req.file.buffer = undefined;
+    await maybeRunGarbageCollection();
+
+    const audioDurationS = await getAudioDurationSeconds(tempUploadPath);
+    const useMemorySaverMode =
+      (Number.isFinite(WHISPER_MEMORY_SAVER_FILE_MB) && fileSize >= WHISPER_MEMORY_SAVER_FILE_MB * 1024 * 1024) ||
+      (Number.isFinite(WHISPER_MEMORY_SAVER_DURATION_S) && audioDurationS >= WHISPER_MEMORY_SAVER_DURATION_S);
+    const forcePlainMemorySaverMode =
+      (Number.isFinite(WHISPER_PLAIN_MODE_FILE_MB) && fileSize >= WHISPER_PLAIN_MODE_FILE_MB * 1024 * 1024) ||
+      (Number.isFinite(WHISPER_PLAIN_MODE_DURATION_S) && audioDurationS >= WHISPER_PLAIN_MODE_DURATION_S);
+    const useProcessIsolationMode =
+      (Number.isFinite(WHISPER_PROCESS_ISOLATION_FILE_MB) && fileSize >= WHISPER_PROCESS_ISOLATION_FILE_MB * 1024 * 1024) ||
+      (Number.isFinite(WHISPER_PROCESS_ISOLATION_DURATION_S) && audioDurationS >= WHISPER_PROCESS_ISOLATION_DURATION_S);
+
+    chunkLengthS = useMemorySaverMode
+      ? Math.min(defaultChunkLengthS, Number.isFinite(WHISPER_MEMORY_SAVER_CHUNK_LENGTH_S) && WHISPER_MEMORY_SAVER_CHUNK_LENGTH_S > 0 ? WHISPER_MEMORY_SAVER_CHUNK_LENGTH_S : 6)
+      : defaultChunkLengthS;
+    const requestedStrideLengthS = useMemorySaverMode
+      ? Math.min(defaultStrideLengthS, Number.isFinite(WHISPER_MEMORY_SAVER_STRIDE_LENGTH_S) && WHISPER_MEMORY_SAVER_STRIDE_LENGTH_S >= 0 ? WHISPER_MEMORY_SAVER_STRIDE_LENGTH_S : 0.75)
+      : defaultStrideLengthS;
+    strideLengthS = Math.min(requestedStrideLengthS, Math.max(0, (chunkLengthS / 2) - 0.1));
+
+    if (useMemorySaverMode) {
+      console.warn(
+        `Using memory-saver transcription mode for ${fileName} (${(fileSize / 1024 / 1024).toFixed(2)}MB, ${audioDurationS.toFixed(1)}s, window=${WHISPER_MEMORY_SAVER_WINDOW_LENGTH_S}s, overlap=${WHISPER_MEMORY_SAVER_WINDOW_OVERLAP_S}s)`
+      );
+      if (forcePlainMemorySaverMode) {
+        console.warn(
+          `Escalating ${fileName} to plain low-memory mode (${(fileSize / 1024 / 1024).toFixed(2)}MB, ${audioDurationS.toFixed(1)}s)`
+        );
+      }
+    }
+
+    effectiveTimestampMode = forceNoTimestamps
       ? 'none'
       : (WHISPER_TIMESTAMP_MODE === 'word' || WHISPER_TIMESTAMP_MODE === 'segment'
         ? WHISPER_TIMESTAMP_MODE
         : (modelUsesSegmentTimestampsByDefault(activeWhisperModel) ? 'segment' : 'word'));
-    if (useMemorySaverMode && effectiveTimestampMode !== 'none') {
+    if (forcePlainMemorySaverMode) {
+      effectiveTimestampMode = 'none';
+    } else if (useMemorySaverMode && effectiveTimestampMode !== 'none') {
       effectiveTimestampMode = 'segment';
     }
 
-    const attempts = useMemorySaverMode
-      ? [
-        { label: 'memory-saver-primary', mode: effectiveTimestampMode, includeAdvanced: false },
-        ...(effectiveTimestampMode !== 'none' ? [{ label: 'plain-fallback', mode: 'none', includeAdvanced: false }] : []),
-      ]
-      : [
-        { label: 'primary', mode: effectiveTimestampMode, includeAdvanced: true },
-        // Medium models can fail on word-timestamp extraction; segment mode is safer.
-        ...(effectiveTimestampMode === 'word' ? [{ label: 'segment-fallback', mode: 'segment', includeAdvanced: false }] : []),
-        { label: 'plain-fallback', mode: 'none', includeAdvanced: false },
-      ];
+    if (useProcessIsolationMode) {
+      if (transcriber) {
+        await disposeTranscriber('switching to isolated worker mode');
+      }
+      console.warn(
+        `Using isolated worker transcription mode for ${fileName} (${(fileSize / 1024 / 1024).toFixed(2)}MB, ${audioDurationS.toFixed(1)}s)`
+      );
+      const effectiveLanguage = getEffectiveWhisperLanguage(WHISPER_LANGUAGE, WHISPER_MODEL);
+      result = await transcribeIsolatedWindows({
+        audioPath: tempUploadPath,
+        audioDurationSeconds: audioDurationS,
+        modelName: WHISPER_MODEL,
+        returnTimestamps: getReturnTimestamps(effectiveTimestampMode),
+        language: effectiveLanguage,
+      });
+    } else {
+      // Initialize transcriber if not already done
+      if (!transcriber) {
+        await initializeTranscriber();
+      }
 
-    let lastError = null;
-    for (const attempt of attempts) {
-      try {
-        result = useMemorySaverMode
-          ? await transcribeSequentialWindows(audioSamples, buildTranscriptionOptions(attempt))
-          : await transcriber(audioSamples, buildTranscriptionOptions(attempt));
-        effectiveTimestampMode = attempt.mode;
-        if (attempt.label !== 'primary') {
-          console.warn(`Whisper retry succeeded with ${attempt.label} (mode=${attempt.mode}).`);
+      const audioSamples = await decodeAudioToFloat32(await fs.readFile(tempUploadPath));
+      await maybeRunGarbageCollection();
+
+      const attempts = useMemorySaverMode
+        ? [
+          { label: 'memory-saver-primary', mode: effectiveTimestampMode, includeAdvanced: false },
+          ...(effectiveTimestampMode !== 'none' ? [{ label: 'plain-fallback', mode: 'none', includeAdvanced: false }] : []),
+        ]
+        : [
+          { label: 'primary', mode: effectiveTimestampMode, includeAdvanced: true },
+          ...(effectiveTimestampMode === 'word' ? [{ label: 'segment-fallback', mode: 'segment', includeAdvanced: false }] : []),
+          { label: 'plain-fallback', mode: 'none', includeAdvanced: false },
+        ];
+
+      let lastError = null;
+      for (const attempt of attempts) {
+        try {
+          result = useMemorySaverMode
+            ? await transcribeSequentialWindows(audioSamples, buildTranscriptionOptions(attempt))
+            : await transcriber(audioSamples, buildTranscriptionOptions(attempt));
+          effectiveTimestampMode = attempt.mode;
+          if (attempt.label !== 'primary') {
+            console.warn(`Whisper retry succeeded with ${attempt.label} (mode=${attempt.mode}).`);
+          }
+          break;
+        } catch (err) {
+          lastError = err;
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn(`Whisper attempt failed (${attempt.label}, mode=${attempt.mode}): ${message}`);
+          if (attempt.mode !== 'none' && message.toLowerCase().includes('offset is out of bounds')) {
+            forceNoTimestamps = true;
+            console.warn('Detected timestamp extraction bug; forcing WHISPER timestamp mode to NONE for this process.');
+          }
         }
-        break;
-      } catch (err) {
-        lastError = err;
-        const message = err instanceof Error ? err.message : String(err);
-        console.warn(`Whisper attempt failed (${attempt.label}, mode=${attempt.mode}): ${message}`);
-        // Some transformers.js builds throw this repeatedly when timestamps are enabled.
-        // Switch this process to no-timestamp mode after first detection to avoid
-        // paying the full failed decode cost on every subsequent request.
-        if (attempt.mode !== 'none' && message.toLowerCase().includes('offset is out of bounds')) {
-          forceNoTimestamps = true;
-          console.warn('Detected timestamp extraction bug; forcing WHISPER timestamp mode to NONE for this process.');
-        }
+      }
+
+      if (!result) {
+        throw lastError || new Error('Whisper transcription failed after retries');
       }
     }
 
     if (!result) {
-      throw lastError || new Error('Whisper transcription failed after retries');
+      throw new Error('Whisper transcription produced no result');
     }
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
@@ -673,6 +967,8 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
       error: 'Failed to transcribe audio',
       details: error.message,
     });
+  } finally {
+    await removeTempFile(tempUploadPath);
   }
 });
 
@@ -690,9 +986,12 @@ app.listen(PORT, () => {
     `   Provider override by header (x-lyrics-ai-provider): ${ALLOW_LYRICS_PROVIDER_OVERRIDE ? 'enabled' : 'disabled'}`
   );
   
-  // Initialize transcriber on startup
-  initializeTranscriber().catch((err) => {
-    console.error('Failed to initialize transcriber on startup:', err);
-    process.exit(1);
-  });
+  if (WHISPER_PRELOAD_ON_STARTUP) {
+    initializeTranscriber().catch((err) => {
+      console.error('Failed to initialize transcriber on startup:', err);
+      process.exit(1);
+    });
+  } else {
+    console.log('   Whisper preload on startup: disabled');
+  }
 });
