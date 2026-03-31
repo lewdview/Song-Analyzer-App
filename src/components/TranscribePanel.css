@@ -186,10 +186,9 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    align-items: center;
     justify-content: center;
     padding: 2rem 1.5rem;
-    gap: 0.75rem;
+    gap: 0.8rem;
 }
 
 .tp-filename {
@@ -199,6 +198,22 @@
     text-align: center;
     word-break: break-all;
     margin: 0;
+}
+
+.tp-progress-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.tp-progress-stats span {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.62rem;
+    color: rgba(208, 160, 255, 0.72);
+    border: 1px solid rgba(160, 60, 255, 0.18);
+    border-radius: 999px;
+    padding: 0.18rem 0.5rem;
+    background: rgba(90, 0, 160, 0.12);
 }
 
 .tp-progress-track {
@@ -229,6 +244,56 @@
     }
 }
 
+.tp-progress-header {
+    width: 100%;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.tp-progress-label {
+    margin: 0;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.74rem;
+    letter-spacing: 0.08em;
+    color: #d9a4ff;
+    text-transform: uppercase;
+}
+
+.tp-progress-meta {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.8rem;
+}
+
+.tp-progress-detail,
+.tp-progress-elapsed {
+    margin: 0;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.67rem;
+    line-height: 1.5;
+    color: rgba(215, 175, 255, 0.74);
+}
+
+.tp-progress-detail {
+    flex: 1;
+}
+
+.tp-progress-elapsed {
+    white-space: nowrap;
+    color: rgba(228, 186, 255, 0.92);
+}
+
+.tp-progress-hint {
+    margin: 0;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.64rem;
+    color: rgba(185, 118, 255, 0.68);
+}
+
 .tp-cipher-label {
     font-family: 'Share Tech Mono', monospace;
     font-size: 0.7rem;
@@ -237,6 +302,79 @@
     text-align: center;
     margin: 0;
     min-height: 1.2em;
+}
+
+.tp-stage-list {
+    width: 100%;
+    display: grid;
+    gap: 0.55rem;
+    margin-top: 0.35rem;
+}
+
+.tp-stage-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid rgba(160, 60, 255, 0.12);
+    border-radius: 0.75rem;
+    background: rgba(70, 0, 120, 0.12);
+}
+
+.tp-stage-item--active {
+    border-color: rgba(212, 126, 255, 0.45);
+    background: rgba(116, 10, 196, 0.22);
+    box-shadow: inset 0 0 22px rgba(153, 45, 255, 0.08);
+}
+
+.tp-stage-item--done {
+    border-color: rgba(86, 211, 146, 0.25);
+    background: rgba(20, 90, 50, 0.14);
+}
+
+.tp-stage-dot {
+    width: 0.58rem;
+    height: 0.58rem;
+    border-radius: 999px;
+    margin-top: 0.28rem;
+    background: rgba(172, 112, 255, 0.3);
+    box-shadow: 0 0 0 1px rgba(172, 112, 255, 0.12);
+    flex-shrink: 0;
+}
+
+.tp-stage-item--active .tp-stage-dot {
+    background: #d28bff;
+    box-shadow: 0 0 14px rgba(210, 139, 255, 0.7);
+}
+
+.tp-stage-item--done .tp-stage-dot {
+    background: #4ade80;
+    box-shadow: 0 0 10px rgba(74, 222, 128, 0.45);
+}
+
+.tp-stage-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.tp-stage-title,
+.tp-stage-state {
+    font-family: 'Share Tech Mono', monospace;
+}
+
+.tp-stage-title {
+    font-size: 0.68rem;
+    color: rgba(242, 228, 255, 0.9);
+    letter-spacing: 0.04em;
+}
+
+.tp-stage-state {
+    font-size: 0.62rem;
+    color: rgba(196, 146, 255, 0.55);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .tp-progress-pct {

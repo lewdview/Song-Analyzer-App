@@ -73,6 +73,8 @@ const WHISPER_PLAIN_MODE_DURATION_S = Number.parseFloat(process.env.WHISPER_PLAI
 const WHISPER_PROCESS_ISOLATION_FILE_MB = Number.parseFloat(process.env.WHISPER_PROCESS_ISOLATION_FILE_MB || '6');
 const WHISPER_PROCESS_ISOLATION_DURATION_S = Number.parseFloat(process.env.WHISPER_PROCESS_ISOLATION_DURATION_S || '210');
 const WHISPER_PRELOAD_ON_STARTUP = process.env.WHISPER_PRELOAD_ON_STARTUP === 'true';
+const TRANSCRIBE_PROGRESS_ACTIVE_TTL_MS = Number.parseInt(process.env.TRANSCRIBE_PROGRESS_ACTIVE_TTL_MS || '1800000', 10);
+const TRANSCRIBE_PROGRESS_FINAL_TTL_MS = Number.parseInt(process.env.TRANSCRIBE_PROGRESS_FINAL_TTL_MS || '600000', 10);
 
 // Allow browser apps (different origin/port) to call the local transcription API.
 app.use((req, res, next) => {
@@ -369,6 +371,187 @@ function segmentsToApproxWords(segments) {
   return words;
 }
 
+const transcriptionJobs = new Map();
+
+function sanitizeProgressPercent(value, fallback = 0) {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function formatProgressClock(totalSeconds) {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
+    return '--:--';
+  }
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function computeWindowProgress(windowIndex, totalWindows, startPercent = 42, endPercent = 90) {
+  if (!Number.isFinite(totalWindows) || totalWindows <= 0) {
+    return startPercent;
+  }
+  const ratio = Math.max(0, Math.min(1, windowIndex / totalWindows));
+  return sanitizeProgressPercent(startPercent + (endPercent - startPercent) * ratio, startPercent);
+}
+
+function buildWindowProgressDetail(windowIndex, totalWindows, offsetSeconds, durationSeconds) {
+  if (!Number.isFinite(totalWindows) || totalWindows <= 0) {
+    return 'Whisper is processing audio on the server.';
+  }
+  const windowStart = formatProgressClock(offsetSeconds);
+  const windowEnd = formatProgressClock(offsetSeconds + durationSeconds);
+  return `Completed window ${windowIndex} of ${totalWindows} (${windowStart}-${windowEnd}).`;
+}
+
+function estimateRemainingMs(snapshot) {
+  if (!snapshot || snapshot.status !== 'running') {
+    return null;
+  }
+
+  if (!Number.isFinite(snapshot.phaseStartedAt) || !Number.isFinite(snapshot.updatedAt)) {
+    return null;
+  }
+
+  const phaseElapsedMs = Math.max(0, snapshot.updatedAt - snapshot.phaseStartedAt);
+
+  if (
+    snapshot.phase === 'transcribing' &&
+    Number.isFinite(snapshot.totalWindows) &&
+    snapshot.totalWindows > 0 &&
+    Number.isFinite(snapshot.completedWindows) &&
+    snapshot.completedWindows > 0 &&
+    snapshot.completedWindows < snapshot.totalWindows
+  ) {
+    const averageWindowMs = phaseElapsedMs / snapshot.completedWindows;
+    const remainingWindows = Math.max(0, snapshot.totalWindows - snapshot.completedWindows);
+    return Math.max(1000, Math.round(averageWindowMs * remainingWindows));
+  }
+
+  if (
+    snapshot.phase === 'transcribing' &&
+    snapshot.mode === 'standard' &&
+    Number.isFinite(snapshot.percent) &&
+    snapshot.percent > 58 &&
+    snapshot.percent < 90
+  ) {
+    const ratio = (snapshot.percent - 58) / 32;
+    if (ratio > 0.05) {
+      return Math.max(1000, Math.round((phaseElapsedMs * (1 - ratio)) / ratio));
+    }
+  }
+
+  if (snapshot.phase === 'finalizing') {
+    return Math.max(1500, 8000 - Math.min(7000, phaseElapsedMs));
+  }
+
+  return null;
+}
+
+function upsertTranscriptionJob(jobId, patch) {
+  if (!jobId) {
+    return null;
+  }
+
+  const now = Date.now();
+  const previous = transcriptionJobs.get(jobId);
+  const nextPhase = patch.phase ?? previous?.phase ?? 'prepare';
+  const phaseStartedAt = previous?.phase === nextPhase
+    ? (previous?.phaseStartedAt ?? previous?.startedAt ?? now)
+    : now;
+  const next = {
+    jobId,
+    status: 'running',
+    phase: 'prepare',
+    label: 'Preparing audio',
+    detail: 'Waiting for upload data.',
+    percent: 0,
+    fileName: '',
+    fileSize: 0,
+    audioDurationSeconds: null,
+    mode: 'standard',
+    completedWindows: 0,
+    totalWindows: 0,
+    startedAt: previous?.startedAt ?? now,
+    updatedAt: previous?.updatedAt ?? now,
+    phaseStartedAt,
+    estimatedRemainingMs: null,
+    completedAt: previous?.completedAt ?? null,
+    ...previous,
+    ...patch,
+  };
+
+  next.updatedAt = now;
+  next.phaseStartedAt = phaseStartedAt;
+
+  if ((next.status === 'complete' || next.status === 'error') && !next.completedAt) {
+    next.completedAt = now;
+  }
+
+  next.percent = sanitizeProgressPercent(next.percent, previous?.percent ?? 0);
+  next.estimatedRemainingMs = estimateRemainingMs(next);
+  transcriptionJobs.set(jobId, next);
+  return next;
+}
+
+function createTranscriptionJob(jobId, { fileName, fileSize }) {
+  return upsertTranscriptionJob(jobId, {
+    status: 'running',
+    phase: 'prepare',
+    label: 'Upload received',
+    detail: 'Preparing audio for transcription.',
+    percent: 4,
+    fileName,
+    fileSize,
+    audioDurationSeconds: null,
+    mode: 'standard',
+    completedWindows: 0,
+    totalWindows: 0,
+    completedAt: null,
+  });
+}
+
+function failTranscriptionJob(jobId, error) {
+  const details = error instanceof Error ? error.message : String(error || 'Unknown error');
+  return upsertTranscriptionJob(jobId, {
+    status: 'error',
+    phase: 'error',
+    label: 'Transcription failed',
+    detail: details,
+    percent: 100,
+  });
+}
+
+function completeTranscriptionJob(jobId, patch = {}) {
+  return upsertTranscriptionJob(jobId, {
+    status: 'complete',
+    phase: 'complete',
+    label: 'Transcript ready',
+    detail: 'Transcription finished successfully.',
+    percent: 100,
+    ...patch,
+  });
+}
+
+function pruneTranscriptionJobs() {
+  const now = Date.now();
+  for (const [jobId, snapshot] of transcriptionJobs.entries()) {
+    const isFinal = snapshot.status === 'complete' || snapshot.status === 'error';
+    const ttlMs = isFinal ? TRANSCRIBE_PROGRESS_FINAL_TTL_MS : TRANSCRIBE_PROGRESS_ACTIVE_TTL_MS;
+    const referenceTime = snapshot.completedAt ?? snapshot.updatedAt ?? snapshot.startedAt ?? now;
+    if ((referenceTime + ttlMs) < now) {
+      transcriptionJobs.delete(jobId);
+    }
+  }
+}
+
+const transcriptionProgressPruner = setInterval(pruneTranscriptionJobs, 60_000);
+if (typeof transcriptionProgressPruner.unref === 'function') {
+  transcriptionProgressPruner.unref();
+}
+
 // Initialize the Whisper pipeline
 let transcriber = null;
 let forceNoTimestamps = false;
@@ -443,7 +626,7 @@ async function initializeTranscriber() {
   }
 }
 
-async function transcribeSequentialWindows(audioSamples, options) {
+async function transcribeSequentialWindows(audioSamples, options, onProgress = null) {
   const windowLengthS = Number.isFinite(WHISPER_MEMORY_SAVER_WINDOW_LENGTH_S) && WHISPER_MEMORY_SAVER_WINDOW_LENGTH_S > 0
     ? WHISPER_MEMORY_SAVER_WINDOW_LENGTH_S
     : 20;
@@ -500,6 +683,16 @@ async function transcribeSequentialWindows(audioSamples, options) {
       console.log(
         `Memory-saver window ${windowIndex}/${totalWindows} completed (offset=${offsetSeconds.toFixed(1)}s, chars=${windowText.length}, ${getProcessMemorySummary()})`
       );
+    }
+
+    if (typeof onProgress === 'function') {
+      onProgress({
+        windowIndex,
+        totalWindows,
+        offsetSeconds,
+        durationSeconds: sliceDurationSeconds,
+        windowTextLength: windowText.length,
+      });
     }
 
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -596,6 +789,7 @@ async function transcribeIsolatedWindows({
   modelName,
   returnTimestamps,
   language,
+  onProgress = null,
 }) {
   const windowLengthS = Number.isFinite(WHISPER_MEMORY_SAVER_WINDOW_LENGTH_S) && WHISPER_MEMORY_SAVER_WINDOW_LENGTH_S > 0
     ? WHISPER_MEMORY_SAVER_WINDOW_LENGTH_S
@@ -652,6 +846,16 @@ async function transcribeIsolatedWindows({
         `Worker window ${windowIndex}/${totalWindows} completed (offset=${offsetSeconds.toFixed(1)}s, chars=${windowText.length}, ${getProcessMemorySummary()})`
       );
     }
+
+    if (typeof onProgress === 'function') {
+      onProgress({
+        windowIndex,
+        totalWindows,
+        offsetSeconds,
+        durationSeconds,
+        windowTextLength: windowText.length,
+      });
+    }
   }
 
   return {
@@ -662,12 +866,27 @@ async function transcribeIsolatedWindows({
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Transcription service is running' });
+  res.json({
+    status: 'ok',
+    message: 'Transcription service is running',
+    progressEndpoint: true,
+    etaSupport: true,
+  });
+});
+
+app.get('/transcribe-progress/:jobId', (req, res) => {
+  const snapshot = transcriptionJobs.get(req.params.jobId);
+  if (!snapshot) {
+    return res.status(404).json({ error: 'Unknown transcription job' });
+  }
+
+  res.json(snapshot);
 });
 
 // Main transcription endpoint
 app.post('/transcribe', upload.single('audio'), async (req, res) => {
   let tempUploadPath = null;
+  const jobId = String(req.body?.job_id || randomUUID());
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No audio file provided' });
@@ -676,6 +895,8 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     const fileName = req.file.originalname;
     const fileSize = req.file.size;
     let uploadBuffer = req.file.buffer;
+
+    createTranscriptionJob(jobId, { fileName, fileSize });
 
     console.log(`Starting transcription for: ${fileName} (${fileSize} bytes)`);
 
@@ -724,11 +945,23 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     let result;
     let effectiveTimestampMode;
 
+    upsertTranscriptionJob(jobId, {
+      phase: 'prepare',
+      label: 'Preparing upload',
+      detail: 'Writing the uploaded audio to temporary storage.',
+      percent: 10,
+    });
     tempUploadPath = await writeUploadToTempFile(uploadBuffer, fileName);
     uploadBuffer = null;
     req.file.buffer = undefined;
     await maybeRunGarbageCollection();
 
+    upsertTranscriptionJob(jobId, {
+      phase: 'prepare',
+      label: 'Inspecting audio',
+      detail: 'Measuring duration and choosing the safest transcription mode.',
+      percent: 18,
+    });
     const audioDurationS = await getAudioDurationSeconds(tempUploadPath);
     const useMemorySaverMode =
       (Number.isFinite(WHISPER_MEMORY_SAVER_FILE_MB) && fileSize >= WHISPER_MEMORY_SAVER_FILE_MB * 1024 * 1024) ||
@@ -747,6 +980,15 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
       ? Math.min(defaultStrideLengthS, Number.isFinite(WHISPER_MEMORY_SAVER_STRIDE_LENGTH_S) && WHISPER_MEMORY_SAVER_STRIDE_LENGTH_S >= 0 ? WHISPER_MEMORY_SAVER_STRIDE_LENGTH_S : 0.75)
       : defaultStrideLengthS;
     strideLengthS = Math.min(requestedStrideLengthS, Math.max(0, (chunkLengthS / 2) - 0.1));
+
+    upsertTranscriptionJob(jobId, {
+      phase: 'prepare',
+      label: 'Audio ready',
+      detail: `Detected ${formatProgressClock(audioDurationS)} of audio and selected ${useProcessIsolationMode ? 'isolated worker' : useMemorySaverMode ? 'chunked memory-saver' : 'standard'} mode.`,
+      percent: 28,
+      audioDurationSeconds: audioDurationS,
+      mode: useProcessIsolationMode ? 'isolated' : useMemorySaverMode ? 'memory-saver' : 'standard',
+    });
 
     if (useMemorySaverMode) {
       console.warn(
@@ -774,6 +1016,13 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
       if (transcriber) {
         await disposeTranscriber('switching to isolated worker mode');
       }
+      upsertTranscriptionJob(jobId, {
+        phase: 'transcribing',
+        label: 'Transcribing in long-file mode',
+        detail: 'Server is processing the recording in isolated windows.',
+        percent: 38,
+        mode: 'isolated',
+      });
       console.warn(
         `Using isolated worker transcription mode for ${fileName} (${(fileSize / 1024 / 1024).toFixed(2)}MB, ${audioDurationS.toFixed(1)}s)`
       );
@@ -784,15 +1033,48 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
         modelName: WHISPER_MODEL,
         returnTimestamps: getReturnTimestamps(effectiveTimestampMode),
         language: effectiveLanguage,
+        onProgress: ({ windowIndex, totalWindows, offsetSeconds, durationSeconds }) => {
+          upsertTranscriptionJob(jobId, {
+            phase: 'transcribing',
+            label: 'Transcribing in long-file mode',
+            detail: buildWindowProgressDetail(windowIndex, totalWindows, offsetSeconds, durationSeconds),
+            percent: computeWindowProgress(windowIndex, totalWindows, 42, 88),
+            completedWindows: windowIndex,
+            totalWindows,
+            mode: 'isolated',
+          });
+        },
       });
     } else {
       // Initialize transcriber if not already done
       if (!transcriber) {
+        upsertTranscriptionJob(jobId, {
+          phase: 'prepare',
+          label: 'Warming up Whisper',
+          detail: 'Loading the transcription model into memory.',
+          percent: 34,
+        });
         await initializeTranscriber();
       }
 
+      upsertTranscriptionJob(jobId, {
+        phase: 'prepare',
+        label: 'Decoding audio',
+        detail: 'Converting the uploaded file into Whisper-ready samples.',
+        percent: useMemorySaverMode ? 34 : 40,
+      });
       const audioSamples = await decodeAudioToFloat32(await fs.readFile(tempUploadPath));
       await maybeRunGarbageCollection();
+
+      upsertTranscriptionJob(jobId, {
+        phase: 'transcribing',
+        label: useMemorySaverMode ? 'Transcribing in chunked mode' : 'Transcribing audio',
+        detail: useMemorySaverMode
+          ? 'Server is working through the recording window by window.'
+          : 'Whisper is decoding the full clip on the server.',
+        percent: useMemorySaverMode ? 38 : 58,
+        mode: useMemorySaverMode ? 'memory-saver' : 'standard',
+      });
 
       const attempts = useMemorySaverMode
         ? [
@@ -809,17 +1091,39 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
       for (const attempt of attempts) {
         try {
           result = useMemorySaverMode
-            ? await transcribeSequentialWindows(audioSamples, buildTranscriptionOptions(attempt))
+            ? await transcribeSequentialWindows(audioSamples, buildTranscriptionOptions(attempt), ({ windowIndex, totalWindows, offsetSeconds, durationSeconds }) => {
+              upsertTranscriptionJob(jobId, {
+                phase: 'transcribing',
+                label: 'Transcribing in chunked mode',
+                detail: buildWindowProgressDetail(windowIndex, totalWindows, offsetSeconds, durationSeconds),
+                percent: computeWindowProgress(windowIndex, totalWindows, 42, 88),
+                completedWindows: windowIndex,
+                totalWindows,
+                mode: 'memory-saver',
+              });
+            })
             : await transcriber(audioSamples, buildTranscriptionOptions(attempt));
           effectiveTimestampMode = attempt.mode;
           if (attempt.label !== 'primary') {
             console.warn(`Whisper retry succeeded with ${attempt.label} (mode=${attempt.mode}).`);
+            upsertTranscriptionJob(jobId, {
+              phase: 'transcribing',
+              label: 'Transcription retry succeeded',
+              detail: `Recovered with ${attempt.label} mode.`,
+              percent: useMemorySaverMode ? 88 : 82,
+            });
           }
           break;
         } catch (err) {
           lastError = err;
           const message = err instanceof Error ? err.message : String(err);
           console.warn(`Whisper attempt failed (${attempt.label}, mode=${attempt.mode}): ${message}`);
+          upsertTranscriptionJob(jobId, {
+            phase: 'transcribing',
+            label: 'Retrying transcription',
+            detail: `Attempt ${attempt.label} failed. Trying a safer fallback.`,
+            percent: useMemorySaverMode ? 54 : 68,
+          });
           if (attempt.mode !== 'none' && message.toLowerCase().includes('offset is out of bounds')) {
             forceNoTimestamps = true;
             console.warn('Detected timestamp extraction bug; forcing WHISPER timestamp mode to NONE for this process.');
@@ -838,6 +1142,12 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
     console.log(`✓ Transcription completed in ${duration}s`);
+    upsertTranscriptionJob(jobId, {
+      phase: 'finalizing',
+      label: 'Finalizing transcript',
+      detail: 'Formatting transcript text, segments, and word timings.',
+      percent: 92,
+    });
 
     // Parse and structure the response to match OpenAI's format
     let transcription = (result.text || '').trim();
@@ -918,11 +1228,23 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     }
 
     console.log(`Transcription payload stats: chars=${transcription.length}, segments=${segments.length}, words=${words.length}`);
+    upsertTranscriptionJob(jobId, {
+      phase: 'finalizing',
+      label: 'Transcript assembled',
+      detail: `Prepared ${segments.length} segments and ${words.length} timed words.`,
+      percent: 96,
+    });
 
     let lyricsAnalysis = null;
     let lyricsAnalysisProvider = null;
 
     if (ENABLE_LYRICS_ANALYSIS && transcription.length >= LOCAL_LYRICS_MIN_CHARS) {
+      upsertTranscriptionJob(jobId, {
+        phase: 'finalizing',
+        label: 'Analyzing lyrics',
+        detail: 'Running local lyrics analysis on the completed transcript.',
+        percent: 97,
+      });
       const requestedProvider = ALLOW_LYRICS_PROVIDER_OVERRIDE
         ? normalizeProvider(req.headers['x-lyrics-ai-provider'])
         : null;
@@ -953,6 +1275,7 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     }
 
     res.json({
+      jobId,
       transcription,
       segments,
       words,
@@ -961,8 +1284,13 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
       fileName,
       duration: parseFloat(duration),
     });
+    completeTranscriptionJob(jobId, {
+      label: 'Transcript ready',
+      detail: `Finished in ${duration}s with ${words.length} timed words.`,
+    });
   } catch (error) {
     console.error('Transcription error:', error);
+    failTranscriptionJob(jobId, error);
     res.status(500).json({
       error: 'Failed to transcribe audio',
       details: error.message,
@@ -978,6 +1306,8 @@ app.listen(PORT, () => {
   console.log(`🎙️  Whisper transcription service running on port ${PORT}`);
   console.log(`   Health check: http://localhost:${PORT}/health`);
   console.log(`   Transcribe: POST http://localhost:${PORT}/transcribe`);
+  console.log(`   Progress: GET http://localhost:${PORT}/transcribe-progress/:jobId`);
+  console.log('   ETA estimation: enabled');
   console.log(`   Word-level timing preference: ${WHISPER_FORCE_WORD_TIMINGS ? 'enabled' : 'disabled'} (timestamp mode=${WHISPER_TIMESTAMP_MODE})`);
   console.log(
     `   Lyrics analysis: ${ENABLE_LYRICS_ANALYSIS ? 'enabled' : 'disabled'} (provider: ${DEFAULT_LYRICS_PROVIDER}, min chars: ${LOCAL_LYRICS_MIN_CHARS})`
