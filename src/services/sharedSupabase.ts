@@ -3,12 +3,29 @@ import { SUPABASE_ANON_KEY, SUPABASE_PROJECT_ID } from '@/config/api';
 
 const SHARED_SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
 
-export const sharedSupabase = createClient(SHARED_SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
+// Cross-subdomain cookie config so sessions persist across *.th3scr1b3.art
+const getAuthOptions = () => {
+  if (typeof window === 'undefined') return { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true };
+
+  const hostname = window.location.hostname;
+  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+
+  return {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-  },
+    storageKey: 'th3scr1b3-auth-token',
+    cookieOptions: isLocalhost ? undefined : {
+      domain: '.th3scr1b3.art',
+      path: '/',
+      sameSite: 'lax' as const,
+      secure: true,
+    }
+  };
+};
+
+export const sharedSupabase = createClient(SHARED_SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: getAuthOptions()
 });
 
 export type SharedProfile = {

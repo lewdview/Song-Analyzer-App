@@ -26,9 +26,9 @@ export interface ActiveDatabaseConfig {
   usesFallback: boolean;
 }
 
-const OG_SUPABASE_PROJECT_ID = 'pznmptudgicrmljjafex';
+const OG_SUPABASE_PROJECT_ID = 'toemkhrfsbkfkutwcjkd';
 const OG_SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6bm1wdHVkZ2ljcm1samphZmV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzMDE4ODUsImV4cCI6MjA3OTg3Nzg4NX0.syu1bbr9OJ5LxCnTrybLVgsjac4UOkFVdAHuvhKMY2g';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvZW1raHJmc2JrZmt1dHdjamtkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2MTQxNTQsImV4cCI6MjEwMzE5MDE1NH0.nAtlMU_ukqXMkIhKppwv1mxDKpxuwHa6ddQBBwK3Iu8';
 const DEFAULT_SERVER_FUNCTION_PATH = 'make-server-473d7342';
 const RUNTIME_CONFIG_STORAGE_KEY = 'tool-drop-runtime-api-config-v1';
 const USER_SCOPE_STORAGE_KEY = 'tool-drop-user-scope-id-v1';
@@ -177,6 +177,11 @@ export const getWhisperServiceUrl = () =>
   (getEnv('VITE_WHISPER_SERVICE_URL') || 'http://localhost:3001').replace(/\/$/, '');
 
 export const getLyricsAiProvider = (): LyricsAIProvider => getRuntimeApiConfig().lyricsAiProvider;
+
+export const getStorageBaseUrl = () =>
+  (getEnv('VITE_STORAGE_BASE_URL') || getEnv('VITE_R2_URL') || 'https://files.th3scr1b3.art').replace(/\/+$/, '');
+
+export const STORAGE_BASE_URL = getStorageBaseUrl();
 
 // Backwards-compatible exports (OG defaults)
 export const SUPABASE_PROJECT_ID = OG_SUPABASE_PROJECT_ID;

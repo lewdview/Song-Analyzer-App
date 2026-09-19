@@ -13,9 +13,9 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const AUDIO_DIR = '/Volumes/extremeDos/___temp music';
-const SUPABASE_URL = 'https://pznmptudgicrmljjafex.supabase.co';
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6bm1wdHVkZ2ljcm1samphZmV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzMDE4ODUsImV4cCI6MjA3OTg3Nzg4NX0.syu1bbr9OJ5LxCnTrybLVgsjac4UOkFVdAHuvhKMY2g';
-const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6bm1wdHVkZ2ljcm1samphZmV4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDMwMTg4NSwiZXhwIjoyMDc5ODc3ODg1fQ.WUqIZQxG974uurpoZJotScY7s61JY7Ksb3boURBT28M';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://toemkhrfsbkfkutwcjkd.supabase.co';
+const ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvZW1raHJmc2JrZmt1dHdjamtkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2MTQxNTQsImV4cCI6MjEwMzE5MDE1NH0.nAtlMU_ukqXMkIhKppwv1mxDKpxuwHa6ddQBBwK3Iu8';
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ANON_KEY;
 const BUCKET = 'song-audio';
 
 const API_BASE = `${SUPABASE_URL}/functions/v1/make-server-473d7342`;

@@ -26,7 +26,7 @@ You need to update your Supabase Edge Function to handle updates. Here's what ne
 ### Option 1: Modify `/analyses/save` to Handle Updates
 
 Update your serverless function at:
-`https://pznmptudgicrmljjafex.supabase.co/functions/v1/make-server-473d7342/analyses/save`
+`https://toemkhrfsbkfkutwcjkd.supabase.co/functions/v1/make-server-473d7342/analyses/save`
 
 Change the logic from:
 ```typescript

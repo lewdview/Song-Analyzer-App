@@ -9,10 +9,12 @@ dist/
 
 # Environment files
 .env
+.env.*
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.vercel*
 
 # MacOS metadata files
 ._*

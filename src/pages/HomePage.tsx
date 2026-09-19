@@ -146,7 +146,7 @@ export function HomePage() {
   const previewProjectId =
     databaseMode === 'custom' && customReady
       ? customProjectId.trim()
-      : 'pznmptudgicrmljjafex';
+      : 'toemkhrfsbkfkutwcjkd';
   const previewModeLabel =
     databaseMode === 'custom'
       ? (customReady ? 'Custom database active' : 'Custom selected but incomplete (fallback to OG)')

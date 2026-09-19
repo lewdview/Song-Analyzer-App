@@ -19,13 +19,13 @@ const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 const corsOrigin = process.env.WHISPER_CORS_ORIGIN || '*';
 const WHISPER_SAMPLE_RATE = Number.parseInt(process.env.WHISPER_SAMPLE_RATE || '16000', 10);
-const WHISPER_MODEL = process.env.WHISPER_MODEL || 'Xenova/whisper-medium.en';
-const WHISPER_FALLBACK_MODELS = (process.env.WHISPER_FALLBACK_MODELS || 'Xenova/whisper-medium.en,Xenova/whisper-base.en')
+const WHISPER_MODEL = process.env.WHISPER_MODEL || 'Xenova/whisper-base.en';
+const WHISPER_FALLBACK_MODELS = (process.env.WHISPER_FALLBACK_MODELS || 'Xenova/whisper-base.en,Xenova/whisper-tiny.en')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
 const WHISPER_DEVICE = process.env.WHISPER_DEVICE || 'cpu';
-const WHISPER_QUANTIZED = process.env.WHISPER_QUANTIZED === 'true';
+const WHISPER_QUANTIZED = process.env.WHISPER_QUANTIZED !== 'false';
 const WHISPER_LANGUAGE = (process.env.WHISPER_LANGUAGE || 'english').trim(); // set empty string for auto-detect
 const WHISPER_CHUNK_LENGTH_S = Number.parseFloat(process.env.WHISPER_CHUNK_LENGTH_S || '12');
 const WHISPER_STRIDE_LENGTH_S = Number.parseFloat(process.env.WHISPER_STRIDE_LENGTH_S || '1.5');
