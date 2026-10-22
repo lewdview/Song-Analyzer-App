@@ -4,8 +4,13 @@ import { logger } from 'npm:hono/logger';
 import { createClient } from 'jsr:@supabase/supabase-js@2.49.8';
 import { analyzeLyricsWithAI } from './lyrics-analyzer.ts';
 import * as kv from './kv_store.ts';
+import { loadConfig, logEnabledFeatures, isFeatureEnabled } from './config.ts';
 
 const app = new Hono();
+const config = loadConfig();
+
+// Log enabled features on startup
+logEnabledFeatures(config);
 
 // ============================================================================
 // AUDIO STORAGE CONFIGURATION
@@ -24,23 +29,86 @@ const getStorageClient = () => {
 // Enable CORS for all routes (explicit config); handle OPTIONS preflight
 app.use('*', cors({
   origin: '*',
-  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['*', 'Authorization', 'apikey', 'Content-Type', 'x-manifesto-write-key'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['*', 'Authorization', 'apikey', 'Content-Type'],
 }));
 app.options('*', (c) => c.text('', 204));
 app.use('*', logger(console.log));
 
-// Optional write gate (recommended for any endpoint that mutates data).
-// If MANIFESTO_WRITE_KEY is unset, writes are allowed (useful for internal/dev).
-const requireWriteKey = (c: any) => {
-  const expected = Deno.env.get('MANIFESTO_WRITE_KEY');
-  if (!expected) return null;
-  const provided = c.req.header('x-manifesto-write-key');
-  if (!provided || provided !== expected) {
-    return c.json({ error: 'Forbidden' }, 403);
+// ============================================================================
+// ADMIN GUARD
+// ============================================================================
+// Reads are open. Anything that writes (save, update, delete, uploads,
+// maintenance, scheduler) needs a signed-in th3scr1b3 account that
+// public.is_admin() accepts, the same rule the LRC layer publishes under.
+// The function runs with the service key, so this is the only gate.
+// Transcription only forwards audio to the Whisper service and stores nothing.
+const OPEN_WRITE_PATHS = [/\/transcribe$/, /^\/$/];
+
+app.use('*', async (c, next) => {
+  const method = c.req.method.toUpperCase();
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return next();
+  if (OPEN_WRITE_PATHS.some((re) => re.test(c.req.path))) return next();
+
+  const token = (c.req.header('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return c.json({ error: 'Sign in with an admin account to change analyses.' }, 401);
+
+  const userClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: userData, error: userError } = await userClient.auth.getUser(token);
+  if (userError || !userData?.user) return c.json({ error: 'Sign in with an admin account to change analyses.' }, 401);
+
+  const { data: isAdmin, error: adminError } = await userClient.rpc('is_admin');
+  if (adminError || isAdmin !== true) return c.json({ error: 'This account is not allowed to change analyses.' }, 403);
+
+  return next();
+});
+
+const DEFAULT_ANALYSIS_SCOPE = 'public';
+
+const sanitizeScopeSegment = (value: string): string => {
+  const trimmed = String(value || '').trim().toLowerCase();
+  const safe = trimmed.replace(/[^a-z0-9:_-]/g, '');
+  return safe.length > 0 ? safe.slice(0, 120) : DEFAULT_ANALYSIS_SCOPE;
+};
+
+const extractJwtSub = (authorizationHeader: string | undefined): string | null => {
+  if (!authorizationHeader) return null;
+  const token = authorizationHeader.replace(/^bearer\s+/i, '').trim();
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+
+  try {
+    const payload = JSON.parse(atob(parts[1]));
+    const sub = payload?.sub;
+    if (typeof sub === 'string' && sub.trim().length > 0) {
+      return sub.trim();
+    }
+  } catch {
+    // Ignore invalid tokens and fall back to other scopes.
   }
   return null;
 };
+
+const getAnalysisScope = (c: any): string => {
+  const headerScope = c.req.header('x-user-id');
+  if (typeof headerScope === 'string' && headerScope.trim().length > 0) {
+    return sanitizeScopeSegment(headerScope);
+  }
+
+  const jwtScope = extractJwtSub(c.req.header('authorization'));
+  if (jwtScope) {
+    return sanitizeScopeSegment(jwtScope);
+  }
+
+  return DEFAULT_ANALYSIS_SCOPE;
+};
+
+const analysisIndexKey = (scope: string): string => `analyses:index:${scope}`;
+const analysisRecordKey = (scope: string, analysisId: string): string => `analysis:${scope}:${analysisId}`;
 
 // Health check
 app.get('/make-server-473d7342/health', (c) => {
@@ -57,102 +125,52 @@ const transcribeHandler = async (c: any) => {
       return c.json({ error: 'No audio file provided' }, 400);
     }
 
-    const apiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!apiKey) {
-      console.error('Transcription error: OPENAI_API_KEY environment variable is not set');
-      return c.json({ error: 'OpenAI API key not configured' }, 500);
-    }
+    // Use local Whisper transcription service
+    const whisperServiceUrl = Deno.env.get('WHISPER_SERVICE_URL') || 'http://localhost:3001';
+    
+    console.log(`Sending transcription request to local Whisper service: ${whisperServiceUrl}/transcribe`);
+    console.log(`File: ${audioFile.name}, size: ${audioFile.size} bytes`);
 
-    const model = Deno.env.get('OPENAI_TRANSCRIBE_MODEL') || 'whisper-1';
+    // Create FormData for local Whisper service
+    const whisperFormData = new FormData();
+    whisperFormData.append('audio', audioFile);
 
-    // Create FormData for OpenAI API
-    const openaiFormData = new FormData();
-    openaiFormData.append('file', audioFile);
-    openaiFormData.append('model', model);
-    // Ask for structured output with timestamps
-    openaiFormData.append('response_format', 'verbose_json');
-    openaiFormData.append('timestamp_granularities[]', 'segment');
-    openaiFormData.append('timestamp_granularities[]', 'word');
-
-    console.log(`Sending transcription request for file: ${audioFile.name}, size: ${audioFile.size} bytes, model: ${model}`);
-
-    // Call OpenAI transcription API
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    // Call local Whisper transcription service
+    const response = await fetch(`${whisperServiceUrl}/transcribe`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: openaiFormData,
+      body: whisperFormData,
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`OpenAI API error (${response.status}): ${errorText}`);
+      console.error(`Whisper service error (${response.status}): ${errorText}`);
       return c.json({ 
-        error: `OpenAI API error: ${response.status}`,
+        error: `Transcription service error: ${response.status}`,
         details: errorText 
       }, response.status);
     }
 
-    // Prefer JSON (verbose) with segments; gracefully fall back to text
-    const contentType = response.headers.get('content-type') || '';
-    let transcription = '';
-    let segments: { start: number; end: number; text: string }[] | undefined = undefined;
-    let words: { start: number; end: number; word: string }[] | undefined = undefined;
-
-    if (contentType.includes('application/json')) {
-      const data = await response.json();
-      transcription = data.text || '';
-
-      if (Array.isArray(data.segments)) {
-        segments = data.segments.map((s: any) => ({
-          start: typeof s.start === 'number' ? s.start : parseFloat(s.start) || 0,
-          end: typeof s.end === 'number' ? s.end : parseFloat(s.end) || 0,
-          text: (s.text || '').trim(),
-        }));
-      }
-
-      if (Array.isArray(data.words)) {
-        words = (data.words as any[]).map((w: any) => ({
-          start: typeof w.start === 'number' ? w.start : parseFloat(w.start) || 0,
-          end: typeof w.end === 'number' ? w.end : parseFloat(w.end) || 0,
-          word: (w.word || w.text || '').trim(),
-        }));
-      }
-
-      if ((!segments || segments.length === 0) && words && words.length > 0) {
-        const words = data.words as Array<{ word: string; start: number; end: number }>;
-        const bucketSizeSec = 3;
-        const coalesced: { start: number; end: number; text: string }[] = [];
-        let bucketStart = words.length ? (words[0].start ?? 0) : 0;
-        let currentText: string[] = [];
-        for (const w of words) {
-          if (currentText.length === 0) bucketStart = w.start ?? bucketStart;
-          currentText.push(w.word);
-          const shouldFlush = (w.end - bucketStart) >= bucketSizeSec || currentText.length >= 12;
-          if (shouldFlush) {
-            coalesced.push({ start: bucketStart || 0, end: w.end ?? bucketStart, text: currentText.join(' ') });
-            currentText = [];
-          }
-        }
-        if (currentText.length) {
-          const lastEnd = words[words.length - 1]?.end ?? bucketStart;
-          coalesced.push({ start: bucketStart || 0, end: lastEnd, text: currentText.join(' ') });
-        }
-        segments = coalesced;
-      }
-    } else {
-      transcription = await response.text();
-    }
+    // Parse response from local Whisper service
+    const data = await response.json();
+    const transcription = data.transcription || '';
+    let segments = data.segments || [];
+    const words = data.words || [];
 
     console.log(`Transcription completed successfully for ${audioFile.name}`);
 
-    // Analyze the lyrics for mood, emotion, and themes
+    // Analyze the lyrics for mood, emotion, and themes (optional, if Sonoteller key is available)
     let lyricsAnalysis = null;
-    if (transcription && transcription.length > 10) {
-      console.log('Analyzing lyrics for mood and emotion...');
-      lyricsAnalysis = await analyzeLyricsWithAI(transcription, apiKey);
-      console.log('Lyrics analysis completed');
+    const sonotellerKey = Deno.env.get('RapidAPI_Key');
+    if (transcription && transcription.length > 10 && sonotellerKey) {
+      try {
+        console.log('Analyzing lyrics for mood and emotion with Sonoteller.ai...');
+        lyricsAnalysis = await analyzeLyricsWithAI(transcription, '');
+        console.log('Lyrics analysis completed');
+      } catch (analysisError) {
+        console.warn('Lyrics analysis failed (optional feature), continuing without analysis:', analysisError);
+      }
+    } else if (transcription && transcription.length > 10) {
+      console.log('Skipping lyrics analysis: SONOTELLER_RAPID_KEY not configured (optional feature)');
     }
 
     return c.json({ 
@@ -180,6 +198,7 @@ app.post('/transcribe', transcribeHandler);
 // Save song analysis to permanent storage
 app.post('/make-server-473d7342/analyses/save', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     const body = await c.req.json();
     const { analyses } = body;
 
@@ -192,7 +211,7 @@ app.post('/make-server-473d7342/analyses/save', async (c) => {
     const newIds: string[] = [];
     
     for (const analysis of analyses) {
-      const key = `analysis:${analysis.id}`;
+      const key = analysisRecordKey(scope, analysis.id);
       
       // Check if this analysis already exists
       const existing = await kv.get(key);
@@ -208,7 +227,7 @@ app.post('/make-server-473d7342/analyses/save', async (c) => {
 
     // Update the index only with new IDs
     if (newIds.length > 0) {
-      const indexKey = 'analyses:index';
+      const indexKey = analysisIndexKey(scope);
       const existingIndex = await kv.get(indexKey) || [];
       const updatedIndex = [...new Set([...existingIndex, ...newIds])];
       await kv.set(indexKey, updatedIndex);
@@ -216,6 +235,7 @@ app.post('/make-server-473d7342/analyses/save', async (c) => {
 
     return c.json({ 
       success: true,
+      scope,
       saved: savedKeys.length,
       skipped: analyses.length - savedKeys.length,
       message: `Successfully saved ${savedKeys.length} new analyses (${analyses.length - savedKeys.length} already existed)`
@@ -230,26 +250,78 @@ app.post('/make-server-473d7342/analyses/save', async (c) => {
   }
 });
 
+// Update existing analyses (for updating metadata like title)
+app.put('/make-server-473d7342/analyses/update', async (c) => {
+  try {
+    const scope = getAnalysisScope(c);
+    const body = await c.req.json();
+    const { analyses } = body;
+
+    if (!analyses || !Array.isArray(analyses)) {
+      return c.json({ error: 'Invalid analyses data' }, 400);
+    }
+
+    // Update each analysis
+    const updatedKeys: string[] = [];
+    const notFoundIds: string[] = [];
+    
+    for (const analysis of analyses) {
+      const key = analysisRecordKey(scope, analysis.id);
+      
+      // Check if this analysis exists
+      const existing = await kv.get(key);
+      if (existing) {
+        // Merge the update with existing data
+        const updated = { ...existing, ...analysis };
+        await kv.set(key, updated);
+        updatedKeys.push(key);
+        console.log(`Updated analysis: ${key} - ${analysis.fileName || existing.fileName}`);
+      } else {
+        notFoundIds.push(analysis.id);
+        console.log(`Analysis not found for update: ${key}`);
+      }
+    }
+
+    return c.json({ 
+      success: true,
+      scope,
+      updated: updatedKeys.length,
+      notFound: notFoundIds.length,
+      notFoundIds,
+      message: `Successfully updated ${updatedKeys.length} analyses (${notFoundIds.length} not found)`
+    });
+
+  } catch (error) {
+    console.error('Update analyses error:', error);
+    return c.json({ 
+      error: 'Failed to update analyses',
+      details: error instanceof Error ? error.message : String(error)
+    }, 500);
+  }
+});
+
 // Load all saved analyses
 app.get('/make-server-473d7342/analyses/load', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     // Get the index of all analysis IDs
-    const indexKey = 'analyses:index';
+    const indexKey = analysisIndexKey(scope);
     const analysisIds = await kv.get(indexKey) || [];
 
     if (analysisIds.length === 0) {
-      return c.json({ analyses: [] });
+      return c.json({ analyses: [], count: 0, scope });
     }
 
     // Fetch all analyses
-    const keys = analysisIds.map((id: string) => `analysis:${id}`);
+    const keys = analysisIds.map((id: string) => analysisRecordKey(scope, id));
     const analyses = await kv.mget(keys);
 
     console.log(`Loaded ${analyses.length} analyses from storage`);
 
     return c.json({ 
       analyses: analyses.filter(a => a !== null),
-      count: analyses.filter(a => a !== null).length
+      count: analyses.filter(a => a !== null).length,
+      scope,
     });
 
   } catch (error) {
@@ -261,114 +333,18 @@ app.get('/make-server-473d7342/analyses/load', async (c) => {
   }
 });
 
-// Update an existing analysis (upsert/merge).
-// Intended for internal tooling (e.g. Musical Manifesto editor).
-app.put('/make-server-473d7342/analyses/:id', async (c) => {
-  const denied = requireWriteKey(c);
-  if (denied) return denied;
-
-  try {
-    const id = c.req.param('id');
-    const body = await c.req.json();
-    const incoming = (body && body.analysis) ? body.analysis : body;
-
-    if (!incoming || typeof incoming !== 'object') {
-      return c.json({ error: 'Invalid analysis payload' }, 400);
-    }
-
-    const key = `analysis:${id}`;
-    const existing = await kv.get(key);
-    const now = new Date().toISOString();
-
-    // Merge: preserve any fields not present in incoming.
-    const merged = {
-      ...(existing || {}),
-      ...incoming,
-      id,
-      // Keep analyzedAt stable if it already exists.
-      analyzedAt: existing?.analyzedAt || incoming.analyzedAt,
-      manifestoUpdatedAt: now,
-    };
-
-    // Session-only field (blob URL) should never be stored.
-    delete (merged as any).audioUrl;
-
-    await kv.set(key, merged);
-
-    // Ensure index includes this ID.
-    const indexKey = 'analyses:index';
-    const existingIndex = await kv.get(indexKey) || [];
-    if (!existingIndex.includes(id)) {
-      await kv.set(indexKey, [...existingIndex, id]);
-    }
-
-    console.log(`Updated analysis: ${key}`);
-
-    return c.json({ success: true, analysis: merged });
-  } catch (error) {
-    console.error('Update analysis error:', error);
-    return c.json({
-      error: 'Failed to update analysis',
-      details: error instanceof Error ? error.message : String(error)
-    }, 500);
-  }
-});
-
-// Project-level manifesto note
-app.get('/make-server-473d7342/manifesto/project-note', async (c) => {
-  try {
-    const key = 'manifesto:projectNote';
-    const value = await kv.get(key);
-    return c.json({
-      note: value?.note || '',
-      updatedAt: value?.updatedAt || null,
-    });
-  } catch (error) {
-    console.error('Get project note error:', error);
-    return c.json({
-      error: 'Failed to load project note',
-      details: error instanceof Error ? error.message : String(error)
-    }, 500);
-  }
-});
-
-app.put('/make-server-473d7342/manifesto/project-note', async (c) => {
-  const denied = requireWriteKey(c);
-  if (denied) return denied;
-
-  try {
-    const body = await c.req.json();
-    const note = body?.note;
-
-    if (typeof note !== 'string') {
-      return c.json({ error: 'note must be a string' }, 400);
-    }
-
-    const key = 'manifesto:projectNote';
-    const value = { note, updatedAt: new Date().toISOString() };
-    await kv.set(key, value);
-
-    return c.json({ success: true, ...value });
-  } catch (error) {
-    console.error('Save project note error:', error);
-    return c.json({
-      error: 'Failed to save project note',
-      details: error instanceof Error ? error.message : String(error)
-    }, 500);
-  }
-});
-
 // Delete a specific analysis (also cleans up stored audio)
 app.delete('/make-server-473d7342/analyses/:id', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     const id = c.req.param('id');
-    const key = `analysis:${id}`;
+    const key = analysisRecordKey(scope, id);
 
     // Delete the analysis from KV store
     await kv.del(key);
 
     // Update the index
-    const indexKey = 'analyses:index';
+    const indexKey = analysisIndexKey(scope);
     const existingIndex = await kv.get(indexKey) || [];
     const updatedIndex = existingIndex.filter((analysisId: string) => analysisId !== id);
     await kv.set(indexKey, updatedIndex);
@@ -399,6 +375,7 @@ app.delete('/make-server-473d7342/analyses/:id', async (c) => {
 
     return c.json({ 
       success: true,
+      scope,
       message: `Analysis ${id} deleted successfully`
     });
 
@@ -414,13 +391,15 @@ app.delete('/make-server-473d7342/analyses/:id', async (c) => {
 // Check if analysis exists by ID
 app.get('/make-server-473d7342/analyses/check/:id', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     const id = c.req.param('id');
-    const key = `analysis:${id}`;
+    const key = analysisRecordKey(scope, id);
     const analysis = await kv.get(key);
     
     return c.json({ 
       exists: analysis !== null,
-      id
+      id,
+      scope,
     });
   } catch (error) {
     console.error('Check analysis error:', error);
@@ -435,6 +414,7 @@ app.get('/make-server-473d7342/analyses/check/:id', async (c) => {
 // Returns the existing analysis if found, with info about whether it has timestamped lyrics
 app.post('/make-server-473d7342/analyses/check-hash', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     const body = await c.req.json();
     const { fileHash } = body;
 
@@ -443,18 +423,19 @@ app.post('/make-server-473d7342/analyses/check-hash', async (c) => {
     }
 
     // Get all analyses and search for matching hash
-    const indexKey = 'analyses:index';
+    const indexKey = analysisIndexKey(scope);
     const analysisIds = await kv.get(indexKey) || [];
 
     if (analysisIds.length === 0) {
       return c.json({ 
         found: false,
+        scope,
         fileHash
       });
     }
 
     // Fetch all analyses to search for hash
-    const keys = analysisIds.map((id: string) => `analysis:${id}`);
+    const keys = analysisIds.map((id: string) => analysisRecordKey(scope, id));
     const analyses = await kv.mget(keys);
     
     // Find analysis with matching hash
@@ -463,6 +444,7 @@ app.post('/make-server-473d7342/analyses/check-hash', async (c) => {
     if (!matchingAnalysis) {
       return c.json({ 
         found: false,
+        scope,
         fileHash
       });
     }
@@ -484,6 +466,7 @@ app.post('/make-server-473d7342/analyses/check-hash', async (c) => {
 
     return c.json({ 
       found: true,
+      scope,
       fileHash,
       analysis: matchingAnalysis,
       hasTimestampedLyrics,
@@ -504,13 +487,14 @@ app.post('/make-server-473d7342/analyses/check-hash', async (c) => {
 // Database maintenance/rebuild function
 app.post('/make-server-473d7342/analyses/maintenance', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     console.log('Starting database maintenance...');
     
-    const indexKey = 'analyses:index';
+    const indexKey = analysisIndexKey(scope);
     const currentIndex = await kv.get(indexKey) || [];
     
     // Get all analysis keys from the database
-    const allAnalysisKeys = await kv.getByPrefix('analysis:');
+    const allAnalysisKeys = await kv.getByPrefix(`analysis:${scope}:`);
     const actualAnalyses = allAnalysisKeys.filter(a => a !== null);
     
     // Extract IDs from actual analyses
@@ -530,6 +514,7 @@ app.post('/make-server-473d7342/analyses/maintenance', async (c) => {
     
     return c.json({ 
       success: true,
+      scope,
       stats: {
         totalAnalyses: actualAnalyses.length,
         indexBefore: currentIndex.length,
@@ -554,9 +539,10 @@ app.post('/make-server-473d7342/analyses/maintenance', async (c) => {
 // Deduplicate analyses - remove duplicates keeping the best version (with timestamped lyrics)
 app.post('/make-server-473d7342/analyses/deduplicate', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     console.log('Starting deduplication scan...');
     
-    const indexKey = 'analyses:index';
+    const indexKey = analysisIndexKey(scope);
     const analysisIds = await kv.get(indexKey) || [];
 
     if (analysisIds.length === 0) {
@@ -568,7 +554,7 @@ app.post('/make-server-473d7342/analyses/deduplicate', async (c) => {
     }
 
     // Fetch all analyses
-    const keys = analysisIds.map((id: string) => `analysis:${id}`);
+    const keys = analysisIds.map((id: string) => analysisRecordKey(scope, id));
     const analyses = await kv.mget(keys);
     const validAnalyses = analyses.filter((a: any) => a !== null);
 
@@ -668,7 +654,7 @@ app.post('/make-server-473d7342/analyses/deduplicate', async (c) => {
 
     // Delete duplicates
     for (const id of duplicatesToRemove) {
-      await kv.del(`analysis:${id}`);
+      await kv.del(analysisRecordKey(scope, id));
     }
 
     // Rebuild index with only kept analyses
@@ -688,6 +674,7 @@ app.post('/make-server-473d7342/analyses/deduplicate', async (c) => {
 
     return c.json({ 
       success: true,
+      scope,
       message: `Removed ${duplicatesToRemove.length} duplicate analyses. ${newIndex.length} unique files remain.`,
       stats
     });
@@ -704,9 +691,10 @@ app.post('/make-server-473d7342/analyses/deduplicate', async (c) => {
 // Remove analyses that don't have a file hash (legacy/incomplete entries)
 app.post('/make-server-473d7342/analyses/remove-no-hash', async (c) => {
   try {
+    const scope = getAnalysisScope(c);
     console.log('Removing analyses without file hash...');
     
-    const indexKey = 'analyses:index';
+    const indexKey = analysisIndexKey(scope);
     const analysisIds = await kv.get(indexKey) || [];
 
     if (analysisIds.length === 0) {
@@ -718,7 +706,7 @@ app.post('/make-server-473d7342/analyses/remove-no-hash', async (c) => {
     }
 
     // Fetch all analyses
-    const keys = analysisIds.map((id: string) => `analysis:${id}`);
+    const keys = analysisIds.map((id: string) => analysisRecordKey(scope, id));
     const analyses = await kv.mget(keys);
     const validAnalyses = analyses.filter((a: any) => a !== null);
 
@@ -738,7 +726,7 @@ app.post('/make-server-473d7342/analyses/remove-no-hash', async (c) => {
 
     // Delete analyses without hash
     for (const id of toRemove) {
-      await kv.del(`analysis:${id}`);
+      await kv.del(analysisRecordKey(scope, id));
       
       // Also try to clean up any associated audio
       try {
@@ -776,6 +764,7 @@ app.post('/make-server-473d7342/analyses/remove-no-hash', async (c) => {
 
     return c.json({ 
       success: true,
+      scope,
       message: `Removed ${toRemove.length} analyses without file hash. ${toKeep.length} analyses remain.`,
       stats
     });
@@ -785,6 +774,109 @@ app.post('/make-server-473d7342/analyses/remove-no-hash', async (c) => {
     return c.json({ 
       error: 'Failed to remove analyses without hash',
       details: error instanceof Error ? error.message : String(error)
+    }, 500);
+  }
+});
+
+// Register variant groups for unlockable content
+app.post('/make-server-473d7342/analyses/variants/register', async (c) => {
+  try {
+    const scope = getAnalysisScope(c);
+    const body = await c.req.json();
+    const { variantGroups } = body;
+
+    if (!variantGroups || !Array.isArray(variantGroups)) {
+      return c.json({ error: 'Invalid variant groups data' }, 400);
+    }
+
+    const registeredGroups: string[] = [];
+    const failedGroups: string[] = [];
+
+    for (const group of variantGroups) {
+      try {
+        const groupKey = `variant-group:${scope}:${group.variantGroupId}`;
+        
+        // Store the variant group metadata
+        await kv.set(groupKey, {
+          id: group.variantGroupId,
+          name: group.groupName,
+          variants: group.variants,
+          status: group.status || 'unlockable',
+          createdAt: new Date().toISOString(),
+        });
+
+        // Update the primary analysis with variant group ID and unlockable count
+        const primaryVariant = group.variants.find((v: any) => v.variantType === 'original') || group.variants[0];
+        if (primaryVariant) {
+          const analysisKey = analysisRecordKey(scope, primaryVariant.id);
+          const analysis = await kv.get(analysisKey);
+          
+          if (analysis) {
+            // Update analysis with variant metadata
+            const unlockableVariants = group.variants.filter((v: any) => v.id !== primaryVariant.id);
+            const updated = {
+              ...analysis,
+              variantGroupId: group.variantGroupId,
+              variantType: 'original',
+              hasUnlockableVariants: unlockableVariants.length > 0,
+              unlockableCount: unlockableVariants.length,
+              updatedAt: new Date().toISOString(),
+            };
+            
+            await kv.set(analysisKey, updated);
+            registeredGroups.push(group.variantGroupId);
+            console.log(`Registered variant group: ${group.groupName} (${group.variantGroupId})`);
+          }
+        }
+      } catch (err) {
+        failedGroups.push(group.variantGroupId);
+        console.error(`Failed to register variant group ${group.variantGroupId}:`, err);
+      }
+    }
+
+    // Update variant groups index
+    const variantIndexKey = `variant-groups:index:${scope}`;
+    const existingIndex = await kv.get(variantIndexKey) || [];
+    const updatedIndex = [...new Set([...existingIndex, ...registeredGroups])];
+    await kv.set(variantIndexKey, updatedIndex);
+
+    return c.json({
+      success: true,
+      scope,
+      registered: registeredGroups.length,
+      failed: failedGroups.length,
+      failedGroupIds: failedGroups.length > 0 ? failedGroups : undefined,
+      message: `Registered ${registeredGroups.length} variant groups (${failedGroups.length} failed)`,
+    });
+
+  } catch (error) {
+    console.error('Register variant groups error:', error);
+    return c.json({
+      error: 'Failed to register variant groups',
+      details: error instanceof Error ? error.message : String(error),
+    }, 500);
+  }
+});
+
+// Get variant group details
+app.get('/make-server-473d7342/analyses/variants/:variantGroupId', async (c) => {
+  try {
+    const scope = getAnalysisScope(c);
+    const variantGroupId = c.req.param('variantGroupId');
+    const groupKey = `variant-group:${scope}:${variantGroupId}`;
+    const group = await kv.get(groupKey);
+
+    if (!group) {
+      return c.json({ error: 'Variant group not found' }, 404);
+    }
+
+    return c.json({ variantGroup: group, scope });
+
+  } catch (error) {
+    console.error('Get variant group error:', error);
+    return c.json({
+      error: 'Failed to get variant group',
+      details: error instanceof Error ? error.message : String(error),
     }, 500);
   }
 });
@@ -898,134 +990,70 @@ app.get('/make-server-473d7342/scheduler/posts/:id', async (c) => {
   }
 });
 
-// Create a new scheduled post
+// Create or update a scheduled post
 app.post('/make-server-473d7342/scheduler/posts', async (c) => {
   try {
     const body = await c.req.json();
-    
-    // Accept either { post: {...} } or flat post data
-    const postData = body.post || body;
+    const post = body.post;
 
-    // Validate required fields
-    if (!postData.songId) {
-      return c.json({ error: 'songId is required' }, 400);
+    if (!post || !post.id) {
+      return c.json({ error: 'Invalid post data - id is required' }, 400);
     }
 
-    if (!postData.dayNumber || postData.dayNumber < 1 || postData.dayNumber > 365) {
+    if (!post.dayNumber || post.dayNumber < 1 || post.dayNumber > 365) {
       return c.json({ error: 'Invalid dayNumber. Must be between 1 and 365.' }, 400);
     }
 
-    // Generate ID if not provided
-    const postId = postData.id || crypto.randomUUID();
-    const key = `scheduler:post:${postId}`;
+    const key = `scheduler:post:${post.id}`;
     const now = new Date().toISOString();
     
-    // Build the post object
+    // Check if this is an update or create
+    const existing = await kv.get(key);
+    const isUpdate = existing !== null;
+    
+    // If updating and day changed, remove from old day index
+    if (isUpdate && existing.dayNumber !== post.dayNumber) {
+      const oldDayIndexKey = `scheduler:day:${existing.dayNumber}`;
+      const oldDayIndex = await kv.get(oldDayIndexKey) || [];
+      const updatedOldIndex = oldDayIndex.filter((id: string) => id !== post.id);
+      await kv.set(oldDayIndexKey, updatedOldIndex);
+    }
+
+    // Save the post
     const postToSave = {
-      id: postId,
-      songId: postData.songId,
-      songName: postData.songName || 'Unknown',
-      platforms: postData.platforms || [],
-      scheduledDate: postData.scheduledDate,
-      scheduledTime: postData.scheduledTime || '12:00',
-      caption: postData.caption || '',
-      hashtags: postData.hashtags || [],
-      dayNumber: postData.dayNumber,
-      status: postData.status || 'scheduled',
-      mediaUrl: postData.mediaUrl,
-      thumbnailUrl: postData.thumbnailUrl,
-      createdAt: now,
+      ...post,
+      createdAt: existing?.createdAt || now,
       updatedAt: now,
     };
-    
     await kv.set(key, postToSave);
 
     // Update main index
     const indexKey = 'scheduler:index';
     const existingIndex = await kv.get(indexKey) || [];
-    if (!existingIndex.includes(postId)) {
-      await kv.set(indexKey, [...existingIndex, postId]);
+    if (!existingIndex.includes(post.id)) {
+      await kv.set(indexKey, [...existingIndex, post.id]);
     }
 
     // Update day-specific index
-    const dayIndexKey = `scheduler:day:${postData.dayNumber}`;
+    const dayIndexKey = `scheduler:day:${post.dayNumber}`;
     const dayIndex = await kv.get(dayIndexKey) || [];
-    if (!dayIndex.includes(postId)) {
-      await kv.set(dayIndexKey, [...dayIndex, postId]);
+    if (!dayIndex.includes(post.id)) {
+      await kv.set(dayIndexKey, [...dayIndex, post.id]);
     }
 
-    console.log(`Created scheduled post: ${postId} for day ${postData.dayNumber}`);
+    console.log(`${isUpdate ? 'Updated' : 'Created'} scheduled post: ${post.id} for day ${post.dayNumber}`);
 
     return c.json({ 
       success: true,
       post: postToSave,
-      message: 'Post created successfully'
+      isUpdate,
+      message: `Post ${isUpdate ? 'updated' : 'created'} successfully`
     });
 
   } catch (error) {
-    console.error('Create post error:', error);
+    console.error('Save post error:', error);
     return c.json({ 
-      error: 'Failed to create post',
-      details: error instanceof Error ? error.message : String(error)
-    }, 500);
-  }
-});
-
-// Update an existing scheduled post
-app.put('/make-server-473d7342/scheduler/posts/:id', async (c) => {
-  try {
-    const id = c.req.param('id');
-    const body = await c.req.json();
-    const updates = body;
-
-    const key = `scheduler:post:${id}`;
-    const existing = await kv.get(key);
-    
-    if (!existing) {
-      return c.json({ error: 'Post not found' }, 404);
-    }
-
-    const now = new Date().toISOString();
-    
-    // If day changed, update indices
-    if (updates.dayNumber && updates.dayNumber !== existing.dayNumber) {
-      // Remove from old day index
-      const oldDayIndexKey = `scheduler:day:${existing.dayNumber}`;
-      const oldDayIndex = await kv.get(oldDayIndexKey) || [];
-      const updatedOldIndex = oldDayIndex.filter((postId: string) => postId !== id);
-      await kv.set(oldDayIndexKey, updatedOldIndex);
-      
-      // Add to new day index
-      const newDayIndexKey = `scheduler:day:${updates.dayNumber}`;
-      const newDayIndex = await kv.get(newDayIndexKey) || [];
-      if (!newDayIndex.includes(id)) {
-        await kv.set(newDayIndexKey, [...newDayIndex, id]);
-      }
-    }
-
-    // Merge updates with existing post
-    const updatedPost = {
-      ...existing,
-      ...updates,
-      id, // Ensure ID doesn't change
-      createdAt: existing.createdAt,
-      updatedAt: now,
-    };
-    
-    await kv.set(key, updatedPost);
-
-    console.log(`Updated scheduled post: ${id}`);
-
-    return c.json({ 
-      success: true,
-      post: updatedPost,
-      message: 'Post updated successfully'
-    });
-
-  } catch (error) {
-    console.error('Update post error:', error);
-    return c.json({ 
-      error: 'Failed to update post',
+      error: 'Failed to save post',
       details: error instanceof Error ? error.message : String(error)
     }, 500);
   }
@@ -1299,308 +1327,6 @@ app.delete('/make-server-473d7342/audio/:analysisId', async (c) => {
   }
 });
 
-// Publish a post immediately
-app.post('/make-server-473d7342/scheduler/publish/:id', async (c) => {
-  try {
-    const id = c.req.param('id');
-    const key = `scheduler:post:${id}`;
-    const post = await kv.get(key);
-
-    if (!post) {
-      return c.json({ error: 'Post not found' }, 404);
-    }
-
-    // Get connected platforms
-    const socialKey = 'social:connections';
-    const connections = await kv.get(socialKey) || {};
-
-    // Check which platforms are connected
-    const connectedPlatforms = post.platforms.filter((p: string) => 
-      connections[p]?.isConnected && connections[p]?.accessToken
-    );
-
-    if (connectedPlatforms.length === 0) {
-      return c.json({ 
-        error: 'No connected platforms',
-        details: 'Please connect at least one social media account before publishing'
-      }, 400);
-    }
-
-    // In a real implementation, this would call each platform's API
-    // For now, we'll simulate publishing
-    const results: Record<string, { success: boolean; postUrl?: string; error?: string }> = {};
-    
-    for (const platform of connectedPlatforms) {
-      // Simulate API call - in production, call actual platform APIs
-      console.log(`Publishing to ${platform}: ${post.caption.substring(0, 50)}...`);
-      
-      // Simulate success (in production, make actual API calls)
-      results[platform] = {
-        success: true,
-        postUrl: `https://${platform}.com/post/${crypto.randomUUID().substring(0, 8)}`,
-      };
-    }
-
-    // Check if any platform succeeded
-    const anySuccess = Object.values(results).some(r => r.success);
-    const allSuccess = Object.values(results).every(r => r.success);
-
-    // Update post status
-    const now = new Date().toISOString();
-    const updatedPost = {
-      ...post,
-      status: allSuccess ? 'published' : (anySuccess ? 'published' : 'failed'),
-      publishedAt: anySuccess ? now : undefined,
-      publishResults: results,
-      updatedAt: now,
-    };
-
-    await kv.set(key, updatedPost);
-
-    console.log(`Published post ${id} to ${connectedPlatforms.length} platforms`);
-
-    return c.json({
-      success: anySuccess,
-      post: updatedPost,
-      results,
-      message: allSuccess 
-        ? `Published to ${connectedPlatforms.length} platforms`
-        : `Published to some platforms (${Object.values(results).filter(r => r.success).length}/${connectedPlatforms.length})`
-    });
-
-  } catch (error) {
-    console.error('Publish error:', error);
-    return c.json({
-      error: 'Failed to publish post',
-      details: error instanceof Error ? error.message : String(error)
-    }, 500);
-  }
-});
-
-// ============================================================================
-// SOCIAL MEDIA ENDPOINTS
-// ============================================================================
-
-// Get social media connection status
-app.get('/make-server-473d7342/social/status', async (c) => {
-  try {
-    const socialKey = 'social:connections';
-    const connections = await kv.get(socialKey) || {};
-
-    // Return status for all platforms
-    const platforms = ['twitter', 'instagram', 'tiktok', 'youtube', 'facebook', 'soundcloud'];
-    const status: Record<string, any> = {};
-
-    for (const platform of platforms) {
-      status[platform] = {
-        platformId: platform,
-        isConnected: connections[platform]?.isConnected || false,
-        username: connections[platform]?.username,
-        connectedAt: connections[platform]?.connectedAt,
-      };
-    }
-
-    return c.json({ platforms: status });
-
-  } catch (error) {
-    console.error('Get social status error:', error);
-    return c.json({
-      error: 'Failed to get social status',
-      details: error instanceof Error ? error.message : String(error)
-    }, 500);
-  }
-});
-
-// Initiate OAuth flow for a platform
-app.get('/make-server-473d7342/social/:platform/connect', async (c) => {
-  try {
-    const platform = c.req.param('platform');
-    const validPlatforms = ['twitter', 'instagram', 'tiktok', 'youtube', 'facebook', 'soundcloud'];
-
-    if (!validPlatforms.includes(platform)) {
-      return c.json({ error: 'Invalid platform' }, 400);
-    }
-
-    // Generate OAuth URL based on platform
-    // In production, these would be real OAuth URLs with proper client IDs
-    const redirectUri = `${Deno.env.get('APP_URL') || 'http://localhost:5173'}/auth/${platform}/callback`;
-    const state = crypto.randomUUID();
-
-    // Store state for verification
-    await kv.set(`oauth:state:${state}`, { platform, createdAt: new Date().toISOString() }, 600); // 10 min expiry
-
-    let authUrl = '';
-    switch (platform) {
-      case 'twitter':
-        authUrl = `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${Deno.env.get('TWITTER_CLIENT_ID') || 'YOUR_TWITTER_CLIENT_ID'}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=tweet.read%20tweet.write%20users.read%20offline.access&state=${state}&code_challenge=challenge&code_challenge_method=plain`;
-        break;
-      case 'instagram':
-        authUrl = `https://api.instagram.com/oauth/authorize?client_id=${Deno.env.get('INSTAGRAM_CLIENT_ID') || 'YOUR_INSTAGRAM_CLIENT_ID'}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=instagram_basic,instagram_content_publish&response_type=code&state=${state}`;
-        break;
-      case 'tiktok':
-        authUrl = `https://www.tiktok.com/v2/auth/authorize/?client_key=${Deno.env.get('TIKTOK_CLIENT_KEY') || 'YOUR_TIKTOK_CLIENT_KEY'}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=video.upload,video.publish&response_type=code&state=${state}`;
-        break;
-      case 'youtube':
-        authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${Deno.env.get('YOUTUBE_CLIENT_ID') || 'YOUR_YOUTUBE_CLIENT_ID'}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=https://www.googleapis.com/auth/youtube.upload&response_type=code&access_type=offline&state=${state}`;
-        break;
-      case 'facebook':
-        authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${Deno.env.get('FACEBOOK_CLIENT_ID') || 'YOUR_FACEBOOK_CLIENT_ID'}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_manage_posts,pages_read_engagement&response_type=code&state=${state}`;
-        break;
-      case 'soundcloud':
-        authUrl = `https://soundcloud.com/connect?client_id=${Deno.env.get('SOUNDCLOUD_CLIENT_ID') || 'YOUR_SOUNDCLOUD_CLIENT_ID'}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${state}`;
-        break;
-    }
-
-    console.log(`Generated OAuth URL for ${platform}`);
-
-    return c.json({ authUrl, state });
-
-  } catch (error) {
-    console.error('OAuth connect error:', error);
-    return c.json({
-      error: 'Failed to generate OAuth URL',
-      details: error instanceof Error ? error.message : String(error)
-    }, 500);
-  }
-});
-
-// Handle OAuth callback
-app.post('/make-server-473d7342/social/:platform/callback', async (c) => {
-  try {
-    const platform = c.req.param('platform');
-    const body = await c.req.json();
-    const { code, state } = body;
-
-    if (!code || !state) {
-      return c.json({ error: 'Missing code or state parameter' }, 400);
-    }
-
-    // Verify state
-    const storedState = await kv.get(`oauth:state:${state}`);
-    if (!storedState || storedState.platform !== platform) {
-      return c.json({ error: 'Invalid or expired state' }, 400);
-    }
-
-    // Clean up state
-    await kv.del(`oauth:state:${state}`);
-
-    // In production, exchange code for tokens here
-    // For now, simulate a successful connection
-    const now = new Date().toISOString();
-    
-    // Get existing connections
-    const socialKey = 'social:connections';
-    const connections = await kv.get(socialKey) || {};
-
-    // Update connection for this platform
-    connections[platform] = {
-      platformId: platform,
-      isConnected: true,
-      username: `${platform}_user_${crypto.randomUUID().substring(0, 6)}`,
-      accessToken: `mock_token_${crypto.randomUUID()}`, // In production, real token from OAuth
-      refreshToken: `mock_refresh_${crypto.randomUUID()}`,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
-      connectedAt: now,
-    };
-
-    await kv.set(socialKey, connections);
-
-    console.log(`Connected ${platform} account`);
-
-    return c.json({
-      success: true,
-      platform,
-      username: connections[platform].username,
-      message: `Successfully connected ${platform}`
-    });
-
-  } catch (error) {
-    console.error('OAuth callback error:', error);
-    return c.json({
-      error: 'Failed to complete OAuth',
-      details: error instanceof Error ? error.message : String(error)
-    }, 500);
-  }
-});
-
-// Disconnect a platform
-app.post('/make-server-473d7342/social/:platform/disconnect', async (c) => {
-  try {
-    const platform = c.req.param('platform');
-
-    const socialKey = 'social:connections';
-    const connections = await kv.get(socialKey) || {};
-
-    if (connections[platform]) {
-      // In production, also revoke the token with the platform
-      connections[platform] = {
-        platformId: platform,
-        isConnected: false,
-      };
-      await kv.set(socialKey, connections);
-    }
-
-    console.log(`Disconnected ${platform} account`);
-
-    return c.json({
-      success: true,
-      platform,
-      message: `Disconnected ${platform}`
-    });
-
-  } catch (error) {
-    console.error('Disconnect error:', error);
-    return c.json({
-      error: 'Failed to disconnect platform',
-      details: error instanceof Error ? error.message : String(error)
-    }, 500);
-  }
-});
-
-// Mock connect (for development/testing without real OAuth)
-app.post('/make-server-473d7342/social/:platform/mock-connect', async (c) => {
-  try {
-    const platform = c.req.param('platform');
-    const body = await c.req.json();
-    const { username } = body;
-
-    const now = new Date().toISOString();
-    
-    const socialKey = 'social:connections';
-    const connections = await kv.get(socialKey) || {};
-
-    connections[platform] = {
-      platformId: platform,
-      isConnected: true,
-      username: username || `${platform}_user`,
-      accessToken: `mock_token_${crypto.randomUUID()}`,
-      connectedAt: now,
-    };
-
-    await kv.set(socialKey, connections);
-
-    console.log(`Mock connected ${platform} as ${connections[platform].username}`);
-
-    return c.json({
-      success: true,
-      platform,
-      connection: {
-        platformId: platform,
-        isConnected: true,
-        username: connections[platform].username,
-        connectedAt: now,
-      }
-    });
-
-  } catch (error) {
-    console.error('Mock connect error:', error);
-    return c.json({
-      error: 'Failed to mock connect',
-      details: error instanceof Error ? error.message : String(error)
-    }, 500);
-  }
-});
-
 // Get scheduler statistics
 app.get('/make-server-473d7342/scheduler/stats', async (c) => {
   try {
@@ -1658,4 +1384,119 @@ app.get('/make-server-473d7342/scheduler/stats', async (c) => {
   }
 });
 
+// Single Song Enrichment Endpoint
+app.post('/make-server-473d7342/project365/enrich-song', async (c) => {
+  try {
+    const { song, transcription } = await c.req.json();
+    const fileName = song.fileName;
+    const dbKey = `project365:song:${fileName}`;
+
+    // 1. Check if already analyzed (PROTECT YOUR QUOTA)
+    const existing = await kv.get(dbKey);
+    if (existing && existing.lyricsAnalysis) {
+      console.log(`Skipping ${fileName} - already analyzed`);
+      return c.json({ status: 'skipped', message: 'Already analyzed', fileName });
+    }
+
+    // 2. Call Sonoteller (Consumes 1 Credit)
+    console.log(`Analyzing lyrics for: ${fileName}`);
+    const analysis = await analyzeLyricsWithAI(transcription.text, '');
+
+    // 3. Save
+    const finalData = {
+      id: crypto.randomUUID(),
+      project: '365 Days of Light and Dark',
+      fileName: fileName,
+      title: song.title,
+      duration: song.duration,
+      transcription: transcription.text,
+      segments: transcription.segments,
+      lyricsAnalysis: analysis,
+      processedAt: new Date().toISOString(),
+    };
+
+    await kv.set(dbKey, finalData);
+    return c.json({ success: true, fileName, sentiment: analysis.sentiment });
+
+  } catch (error) {
+    return c.json({ error: error.message }, 500);
+  }
+});
+
 Deno.serve(app.fetch);
+
+// ============================================================================
+// 365 DAYS PROJECT - BATCH PROCESSING & EXPORT
+// ============================================================================
+
+// 1. Single Song Enrichment Endpoint (Called by local script)
+app.post('/make-server-473d7342/project365/enrich-song', async (c) => {
+  try {
+    const { song, transcription } = await c.req.json();
+
+    if (!song || !transcription || !transcription.text) {
+      return c.json({ error: 'Invalid song data' }, 400);
+    }
+
+    const fileName = song.fileName;
+    // Use a specific prefix for this project's data
+    const dbKey = `project365:song:${fileName}`;
+
+    // Check if already processed to save API credits
+    const existing = await kv.get(dbKey);
+    if (existing && existing.lyricsAnalysis) {
+      console.log(`Skipping ${fileName} - already analyzed`);
+      return c.json({ status: 'skipped', fileName });
+    }
+
+    // Call Sonoteller using the transcription text we already have
+    console.log(`Analyzing lyrics for: ${fileName}`);
+    // The API key is pulled from Deno.env inside the function, so we pass empty string
+    const analysis = await analyzeLyricsWithAI(transcription.text, '');
+
+    // Create the final 365 data object
+    const finalData = {
+      id: crypto.randomUUID(),
+      project: '365 Days of Light and Dark',
+      fileName: fileName,
+      title: song.title,
+      duration: song.duration,
+      transcription: transcription.text,
+      segments: transcription.segments, // Timestamps are crucial for your visuals
+      lyricsAnalysis: analysis,         // The new Sonoteller data
+      processedAt: new Date().toISOString(),
+    };
+
+    // Save to Database
+    await kv.set(dbKey, finalData);
+
+    return c.json({ success: true, fileName, sentiment: analysis.sentiment });
+
+  } catch (error) {
+    console.error('Error in enrich-song:', error);
+    return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
+  }
+});
+
+// 2. Export JSON Endpoint (To get the final dataset)
+app.get('/make-server-473d7342/project365/export', async (c) => {
+  try {
+    // Fetch all keys starting with 'project365:song:'
+    // Note: detailed list/filtering might depend on your KV implementation limits
+    const allKeys = await kv.getByPrefix('project365:song:');
+    
+    // Sort by filename for consistency
+    const sorted = allKeys.sort((a: any, b: any) => 
+      (a.fileName || '').localeCompare(b.fileName || '')
+    );
+
+    return c.json({
+      project: "365 Days of Light and Dark",
+      exportedAt: new Date().toISOString(),
+      count: sorted.length,
+      songs: sorted
+    });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
+  }
+});

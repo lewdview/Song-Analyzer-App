@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Creative Engine · th3scr1b3</title>
+  <meta name="description" content="The Creative Engine: every tool behind 365 Days of Light and Dark. Song Analyzer, Poem Analyzer, LRC, Video Poster, MIDI Chaos, Winamp and ASCII Magic." />
+  <meta property="og:title" content="Creative Engine · th3scr1b3" />
+  <meta property="og:description" content="Every tool behind 365 Days of Light and Dark, built in the open, glitches included." />
+  <meta name="theme-color" content="#0b0710" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0b0710;
+      --paper: #f4efe6;
+      --dim: rgba(244, 239, 230, 0.62);
+      --line: rgba(244, 239, 230, 0.16);
+      --hot: #ffd23f;
+      --pink: #ff2e93;
+      --cyan: #00e5ff;
+      --lime: #39ff14;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--ink); color: var(--paper); }
+    body {
+      font: 400 16px/1.5 'Space Grotesk', system-ui, sans-serif;
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse at 15% -10%, rgba(255, 46, 147, 0.18), transparent 55%),
+        radial-gradient(ellipse at 90% 10%, rgba(0, 229, 255, 0.12), transparent 50%),
+        var(--ink);
+    }
+    a { color: inherit; }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 56px 20px 80px; }
+    .eyebrow { font: 700 12px/1 'JetBrains Mono', monospace; letter-spacing: 0.2em; text-transform: uppercase; color: var(--hot); }
+    h1 {
+      margin: 14px 0 12px;
+      font: 400 clamp(56px, 12vw, 132px)/0.86 'Anton', Impact, sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.01em;
+      text-shadow: 4px 4px 0 var(--pink);
+    }
+    .lede { max-width: 640px; color: var(--dim); font-size: 18px; margin: 0 0 40px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .tool {
+      position: relative;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 10px;
+      padding: 20px 20px 18px;
+      border: 2px solid var(--paper);
+      background: rgba(11, 7, 16, 0.85);
+      box-shadow: 6px 6px 0 var(--accent, var(--pink));
+      text-decoration: none;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .tool:hover, .tool:focus-visible { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 var(--accent, var(--pink)); outline: none; }
+    .tool:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 var(--accent, var(--pink)); }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .n { font: 700 13px/1 'JetBrains Mono', monospace; color: var(--accent, var(--pink)); }
+    .kind {
+      font: 700 11px/1 'JetBrains Mono', monospace; letter-spacing: 0.12em; text-transform: uppercase;
+      padding: 5px 8px; border: 1px solid var(--line); color: var(--dim);
+    }
+    .tool h2 { margin: 0; font: 400 34px/1 'Anton', Impact, sans-serif; text-transform: uppercase; letter-spacing: 0.01em; }
+    .tool p { margin: 0; color: var(--dim); }
+    .go { font: 700 12px/1 'JetBrains Mono', monospace; letter-spacing: 0.08em; color: var(--paper); }
+    .go span { color: var(--accent, var(--pink)); }
+    .note { margin: 40px 0 0; color: var(--dim); font-size: 14px; border-top: 1px solid var(--line); padding-top: 18px; }
+    .note a { color: var(--hot); }
+    @media (prefers-reduced-motion: reduce) { .tool { transition: none; } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="eyebrow">th3scr1b3 · 365 Days of Light and Dark</div>
+    <h1>Creative<br />Engine</h1>
+    <p class="lede">Every tool behind the year, built in the open, glitches included. One song a day needed a machine around it: these are its parts.</p>
+
+    <section class="grid" aria-label="Tools of the Creative Engine">
+      <a class="tool" href="https://analyzer.th3scr1b3.art" style="--accent: var(--hot)">
+        <div class="top"><span class="n">01</span><span class="kind">Analyze songs</span></div>
+        <h2>Song Analyzer</h2>
+        <p>Reads each song: tempo, key, energy, mood, and the light or dark call behind every day of the year. Transcribes lyrics with Whisper.</p>
+        <div class="go">Open analyzer <span>→</span></div>
+      </a>
+      <a class="tool" href="https://mood.th3scr1b3.art" style="--accent: var(--pink)">
+        <div class="top"><span class="n">02</span><span class="kind">Analyze words</span></div>
+        <h2>Poem Analyzer</h2>
+        <p>Sentiment, rhyme schemes and tone, read straight out of a poem or a lyric.</p>
+        <div class="go">Open poem analyzer <span>→</span></div>
+      </a>
+      <a class="tool" href="https://lrc.th3scr1b3.art" style="--accent: var(--cyan)">
+        <div class="top"><span class="n">03</span><span class="kind">Sync</span></div>
+        <h2>LRC</h2>
+        <p>Where every lyric gets its timing, word by word. The official lyrics and timings every layer plays from.</p>
+        <div class="go">Open LRC <span>→</span></div>
+      </a>
+      <a class="tool" href="https://video.th3scr1b3.art" style="--accent: var(--lime)">
+        <div class="top"><span class="n">04</span><span class="kind">Watch</span></div>
+        <h2>Video Poster</h2>
+        <p>Lyric videos and posters for the daily drops: the words, moving with the music.</p>
+        <div class="go">Open video poster <span>→</span></div>
+      </a>
+      <a class="tool" href="https://midi.th3scr1b3.art" style="--accent: var(--pink)">
+        <div class="top"><span class="n">05</span><span class="kind">Make</span></div>
+        <h2>MIDI Chaos</h2>
+        <p>Ideas, not finished songs: chaotic chords, melodies, bass and drums, exported as MIDI.</p>
+        <div class="go">Open MIDI Chaos <span>→</span></div>
+      </a>
+      <a class="tool" href="https://winamp.th3scr1b3.art" style="--accent: var(--hot)">
+        <div class="top"><span class="n">06</span><span class="kind">Listen</span></div>
+        <h2>Winamp</h2>
+        <p>The whole year in a player that really whips. Skins on, volume up.</p>
+        <div class="go">Open Winamp <span>→</span></div>
+      </a>
+      <a class="tool" href="https://ascii.th3scr1b3.art" style="--accent: var(--cyan)">
+        <div class="top"><span class="n">07</span><span class="kind">Dither</span></div>
+        <h2>ASCII Magic</h2>
+        <p>Videos, clips and your webcam as real-time dithered ASCII animation, with retro palettes.</p>
+        <div class="go">Open ASCII Magic <span>→</span></div>
+      </a>
+    </section>
+
+    <p class="note">Part of <a href="https://th3scr1b3.art">365 Days of Light and Dark</a>. One login for every layer at <a href="https://user.th3scr1b3.art">user.th3scr1b3.art</a>.</p>
+  </main>
+
+  <!-- th3scr1b3 ecosystem bar: shared layer switcher + visit tracking. Layers live in https://th3scr1b3.art/ecosystem.json -->
+  <script src="https://th3scr1b3.art/ecosystem-bar.js" defer></script>
+</body>
+</html>

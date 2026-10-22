@@ -6,84 +6,106 @@ export interface LyricsAnalysis {
   sentimentScore: number; // -1 to 1
   energyFromLyrics: number; // 0 to 1
   valenceFromLyrics: number; // 0 to 1
+  depthFromLyrics: number; // 0 to 1
 }
 
-export async function analyzeLyricsWithAI(lyrics: string, apiKey: string): Promise<LyricsAnalysis> {
-  const prompt = `Analyze the following song lyrics and provide a JSON response with mood, emotion, themes, and sentiment analysis.
-
-Lyrics:
-"""
-${lyrics.substring(0, 2000)} ${lyrics.length > 2000 ? '...(truncated)' : ''}
-"""
-
-Provide your analysis in the following JSON format:
-{
-  "mood": ["array", "of", "mood", "descriptors"],
-  "emotion": ["array", "of", "emotions"],
-  "themes": ["array", "of", "themes"],
-  "sentiment": "positive|negative|neutral|mixed",
-  "sentimentScore": <number between -1 and 1>,
-  "energyFromLyrics": <number between 0 and 1, where 1 is very energetic/intense>,
-  "valenceFromLyrics": <number between 0 and 1, where 1 is very positive/happy>
+export interface SonotellerResponse {
+  summary?: string;
+  moods?: string[];
+  themes?: string[];
+  explicit?: boolean;
+  language?: string;
+  keywords?: string[];
+  [key: string]: any;
 }
 
-Guidelines:
-- mood: emotional atmosphere (e.g., "melancholic", "upbeat", "dark", "cheerful")
-- emotion: specific emotions expressed (e.g., "joy", "sadness", "anger", "love")
-- themes: subject matter (e.g., "heartbreak", "celebration", "social commentary", "personal growth")
-- sentiment: overall emotional tone
-- sentimentScore: -1 (very negative) to 1 (very positive)
-- energyFromLyrics: based on intensity, urgency, action words
-- valenceFromLyrics: based on positivity, optimism, mood
+/**
+ * Analyze lyrics using Sonoteller.ai via RapidAPI
+ * Requires SONOTELLER_RAPID_KEY and SONOTELLER_RAPID_HOST environment variables
+ */
+export async function analyzeLyricsWithAI(lyrics: string, _apiKey: string): Promise<LyricsAnalysis> {
+  const rapidApiKey = Deno.env.get('SONOTELLER_RAPID_KEY');
+  const rapidApiHost = Deno.env.get('SONOTELLER_RAPID_HOST') || 'sonoteller-ai1.p.rapidapi.com';
 
-Return ONLY the JSON, no other text.`;
+  if (!rapidApiKey) {
+    throw new Error('SONOTELLER_RAPID_KEY environment variable is not set');
+  }
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    console.log('Analyzing lyrics with Sonoteller.ai...');
+
+    // Prepare lyrics for Sonoteller (text-based analysis)
+    // Note: Sonoteller API expects a file URL, but we can send lyrics as text for analysis
+    const response = await fetch(`https://${rapidApiHost}/lyrics`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
+        'content-type': 'application/json',
+        'X-RapidAPI-Key': rapidApiKey,
+        'X-RapidAPI-Host': rapidApiHost,
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a music and lyrics analysis expert. Analyze lyrics and provide structured emotional and thematic analysis in JSON format.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 500,
+        text: lyrics.substring(0, 2000), // Truncate if too long
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+      console.warn(`Sonoteller API error (${response.status}): ${errorText}`);
+      throw new Error(`Sonoteller API error: ${response.status}`);
     }
 
-    const data = await response.json();
-    const content = data.choices[0].message.content.trim();
+    const data: SonotellerResponse = await response.json();
+    console.log('Sonoteller analysis received:', data);
+
+    // Extract and normalize Sonoteller response into our format
+    const mood = data.moods || [];
+    const themes = data.themes || [];
+    const keywords = data.keywords || [];
+    const isExplicit = data.explicit || false;
+
+    // Determine sentiment from moods and themes
+    const negativeMoods = ['sad', 'angry', 'dark', 'melancholic', 'depressing', 'gloomy', 'haunting'];
+    const positiveMoods = ['happy', 'upbeat', 'energetic', 'cheerful', 'joyful', 'uplifting', 'inspiring'];
     
-    // Remove markdown code blocks if present
-    let jsonContent = content;
-    if (content.startsWith('```json')) {
-      jsonContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-    } else if (content.startsWith('```')) {
-      jsonContent = content.replace(/```\n?/g, '');
+    const hasNegative = mood.some((m: string) => negativeMoods.some((nm) => m.toLowerCase().includes(nm)));
+    const hasPositive = mood.some((m: string) => positiveMoods.some((pm) => m.toLowerCase().includes(pm)));
+
+    let sentiment: 'positive' | 'negative' | 'neutral' | 'mixed' = 'neutral';
+    if (hasPositive && hasNegative) {
+      sentiment = 'mixed';
+    } else if (hasPositive) {
+      sentiment = 'positive';
+    } else if (hasNegative) {
+      sentiment = 'negative';
     }
+
+    // Estimate energy and valence from moods
+    const energyKeywords = ['energetic', 'intense', 'powerful', 'aggressive', 'upbeat', 'fast'];
+    const valenceKeywords = ['happy', 'joyful', 'uplifting', 'cheerful', 'positive', 'optimistic'];
     
-    const analysis = JSON.parse(jsonContent);
-    
-    return analysis;
+    const hasEnergyMood = mood.some((m: string) => energyKeywords.some((ek) => m.toLowerCase().includes(ek)));
+    const hasValenceMood = mood.some((m: string) => valenceKeywords.some((vk) => m.toLowerCase().includes(vk)));
+
+    const energyFromLyrics = hasEnergyMood ? 0.7 : 0.4;
+    const valenceFromLyrics = hasValenceMood ? 0.7 : 0.4;
+    const depthFromLyrics = Math.min(1, Math.max(0.2, ((themes.length + keywords.length) / 20)));
+
+    // Estimate sentiment score
+    const sentimentScore = sentiment === 'positive' ? 0.7 : sentiment === 'negative' ? -0.7 : sentiment === 'mixed' ? 0 : 0;
+
+    return {
+      mood: mood.length > 0 ? mood : ['unknown'],
+      emotion: keywords.length > 0 ? keywords.slice(0, 5) : ['unknown'], // Use keywords as emotions
+      themes: themes.length > 0 ? themes : ['unknown'],
+      sentiment,
+      sentimentScore,
+      energyFromLyrics,
+      valenceFromLyrics,
+      depthFromLyrics,
+    };
   } catch (error) {
-    console.error('Error analyzing lyrics with AI:', error);
-    
+    console.error('Error analyzing lyrics with Sonoteller:', error);
+
     // Return basic fallback analysis
     return {
       mood: ['unknown'],
@@ -93,6 +115,7 @@ Return ONLY the JSON, no other text.`;
       sentimentScore: 0,
       energyFromLyrics: 0.5,
       valenceFromLyrics: 0.5,
+      depthFromLyrics: 0.5,
     };
   }
 }
