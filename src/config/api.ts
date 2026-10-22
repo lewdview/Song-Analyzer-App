@@ -1,3 +1,4 @@
+import { getAccessToken } from '@/services/authToken';
 /**
  * Centralized runtime API configuration.
  *
@@ -265,8 +266,10 @@ export const API_ENDPOINTS = {
 export const getAuthHeaders = () => {
   const db = getActiveDatabaseConfig();
   const userScopeId = getUserScopeId();
+  // The signed-in th3scr1b3 account (only valid on the th3scr1b3 project): writes are admin-only.
+  const token = db.projectId === OG_SUPABASE_PROJECT_ID ? getAccessToken() : null;
   return {
-    Authorization: `Bearer ${db.anonKey}`,
+    Authorization: `Bearer ${token || db.anonKey}`,
     apikey: db.anonKey,
     'x-user-id': userScopeId,
   };

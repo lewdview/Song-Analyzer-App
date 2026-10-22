@@ -99,3 +99,15 @@
         font-size: 0.72rem;
     }
 }
+/* Analyzer app: the shared th3scr1b3.art account */
+.nb-account {
+    margin-left: auto;
+    padding: 6px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 999px;
+    color: inherit;
+    font-size: 12px;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.nb-account:hover { border-color: rgba(255, 255, 255, 0.6); }
