@@ -35,6 +35,37 @@ app.use('*', cors({
 app.options('*', (c) => c.text('', 204));
 app.use('*', logger(console.log));
 
+// ============================================================================
+// ADMIN GUARD
+// ============================================================================
+// Reads are open. Anything that writes (save, update, delete, uploads,
+// maintenance, scheduler) needs a signed-in th3scr1b3 account that
+// public.is_admin() accepts, the same rule the LRC layer publishes under.
+// The function runs with the service key, so this is the only gate.
+// Transcription only forwards audio to the Whisper service and stores nothing.
+const OPEN_WRITE_PATHS = [/\/transcribe$/, /^\/$/];
+
+app.use('*', async (c, next) => {
+  const method = c.req.method.toUpperCase();
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return next();
+  if (OPEN_WRITE_PATHS.some((re) => re.test(c.req.path))) return next();
+
+  const token = (c.req.header('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return c.json({ error: 'Sign in with an admin account to change analyses.' }, 401);
+
+  const userClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: userData, error: userError } = await userClient.auth.getUser(token);
+  if (userError || !userData?.user) return c.json({ error: 'Sign in with an admin account to change analyses.' }, 401);
+
+  const { data: isAdmin, error: adminError } = await userClient.rpc('is_admin');
+  if (adminError || isAdmin !== true) return c.json({ error: 'This account is not allowed to change analyses.' }, 403);
+
+  return next();
+});
+
 const DEFAULT_ANALYSIS_SCOPE = 'public';
 
 const sanitizeScopeSegment = (value: string): string => {
