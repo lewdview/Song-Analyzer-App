@@ -81,6 +81,11 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', corsOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, apikey, x-lyrics-ai-provider');
+  // Chrome's Private Network Access: lets https://analyzer.th3scr1b3.art call this
+  // service on the same computer (http://localhost:3001).
+  if (req.headers['access-control-request-private-network'] === 'true') {
+    res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  }
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
   }

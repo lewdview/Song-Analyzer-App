@@ -1,32 +1,25 @@
 import { createClient } from '@jsr/supabase__supabase-js';
 import { SUPABASE_ANON_KEY, SUPABASE_PROJECT_ID } from '@/config/api';
+import { sharedAuthStorage } from './sharedAuthStorage';
+import { setAccessToken } from './authToken';
 
 const SHARED_SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
 
-// Cross-subdomain cookie config so sessions persist across *.th3scr1b3.art
-const getAuthOptions = () => {
-  if (typeof window === 'undefined') return { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true };
-
-  const hostname = window.location.hostname;
-  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
-
-  return {
+// One session for every *.th3scr1b3.art site: the same storage key and shared
+// cookie storage as the main site, PIM, the LRC layer and the user hub.
+export const sharedSupabase = createClient(SHARED_SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
     storageKey: 'th3scr1b3-auth-token',
-    cookieOptions: isLocalhost ? undefined : {
-      domain: '.th3scr1b3.art',
-      path: '/',
-      sameSite: 'lax' as const,
-      secure: true,
-    }
-  };
-};
-
-export const sharedSupabase = createClient(SHARED_SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: getAuthOptions()
+    storage: sharedAuthStorage(),
+  },
 });
+
+// Keep the request helpers' token in step with the session.
+void sharedSupabase.auth.getSession().then(({ data }) => setAccessToken(data.session?.access_token ?? null));
+sharedSupabase.auth.onAuthStateChange((_event, session) => setAccessToken(session?.access_token ?? null));
 
 export type SharedProfile = {
   id: string;

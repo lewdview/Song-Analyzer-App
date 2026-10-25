@@ -2,6 +2,7 @@ import { createBrowserRouter, RouterProvider, Outlet } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { NavBar } from '@/components/NavBar';
+import { IS_ANALYZER_APP } from '@/config/appMode';
 
 // Lazy load pages for code splitting
 const HomePage = lazy(() => import('@/pages/HomePage'));
@@ -36,8 +37,20 @@ function RootLayout() {
   );
 }
 
+// analyzer.th3scr1b3.art: the Song Analyzer studio is the whole site.
+const analyzerRoutes = [
+  { index: true, element: <HomePage /> },
+  { path: 'studio', element: <HomePage /> },
+  { path: 'scheduler', element: <SchedulerPage /> },
+  { path: 'scheduler/:dayNumber', element: <SchedulerPage /> },
+  { path: 'karaoke', element: <KaraokePage /> },
+  { path: 'original', element: <OriginalSongAnalyzerPage /> },
+];
+
 // Router configuration
-const router = createBrowserRouter([
+const router = IS_ANALYZER_APP ? createBrowserRouter([
+  { path: '/', element: <RootLayout />, children: analyzerRoutes },
+]) : createBrowserRouter([
   {
     path: '/',
     element: <RootLayout />,
